@@ -103,7 +103,7 @@ class RequestResetPassword(APIView):
     
 
 class HandleResetPassword(APIView):
-    def get(self, request, uid, token):
+    def post(self, request, uid, token):
         try:
             uid = force_str(urlsafe_base64_decode(uid))
             user = get_object_or_404(User, pk=uid)
