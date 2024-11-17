@@ -23,7 +23,9 @@ class Author(models.Model):
 
 class Book(models.Model):
     title = models.CharField(max_length=255)
+
     author = models.ForeignKey(Author,related_name='book_books', on_delete=models.CASCADE)
+
     summary = models.TextField()
     cover = models.CharField(max_length=455,default='null')
     category = models.ForeignKey(Category,related_name='book_category', on_delete=models.CASCADE)

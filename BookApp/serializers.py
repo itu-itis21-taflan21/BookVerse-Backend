@@ -1,17 +1,19 @@
+
 from .models import Author,Book,FavBook,Rating,UserComment,ReadList
+
 from rest_framework import serializers
 from django.contrib.auth.models import User
 
 class BookforAuthorSerializer(serializers.ModelSerializer):
     class Meta:
         model = Book
-        fields = ['id', 'title','cover','page_count'] 
-
+        fields = ['id', 'title','cover','page_count']
 
 class AuthorSerializer(serializers.ModelSerializer):
     book_books = BookforAuthorSerializer(many=True, read_only=True)
     class Meta:
         model = Author
+
         fields = ['id', 'name','book_count','fav_book_count','average_rating','book_books'] 
     
 class CommentsforUser(serializers.ModelSerializer):
@@ -45,3 +47,11 @@ class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model=User
         fields = ['id','username','email','date_joined','fav_user','read_user','comment_user','rating_user']
+
+
+class CategorySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Category
+        fields = ['id', 'name','book_count'] 
+
+
