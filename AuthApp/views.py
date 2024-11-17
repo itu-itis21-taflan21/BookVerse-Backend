@@ -30,7 +30,7 @@ class SignupView(APIView):
 
         token = token_generator.make_token(user)
         uid = urlsafe_base64_encode(force_bytes(user.pk))
-        verification_link = f"http://100.27.201.17:8000/verify-email/{uid}/{token}/"
+        verification_link = f"http://54.160.153.61:8000/verify-email/{uid}/{token}/"
         
         send_mail(
             "Verify your email",
@@ -46,13 +46,15 @@ class VerifyEmailView(APIView):
         try:
             uid = force_str(urlsafe_base64_decode(uid))
             user = get_object_or_404(User, pk=uid)
-
-            if token_generator.check_token(user, token):
-                user.is_active = True
-                user.save()
-                return Response({"message": "Email verified successfully"}, status=status.HTTP_200_OK)
+            if user.is_active==False:
+                if token_generator.check_token(user, token):
+                    user.is_active = True
+                    user.save()
+                    return Response({"message": "Email verified successfully"}, status=status.HTTP_200_OK)
+                else:
+                    return Response({"error": "Invalid or expired token"}, status=status.HTTP_400_BAD_REQUEST)
             else:
-                return Response({"error": "Invalid or expired token"}, status=status.HTTP_400_BAD_REQUEST)
+                return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
         
@@ -75,6 +77,7 @@ class LoginView(APIView):
         
         refresh = RefreshToken.for_user(user)
         return Response({
+            'username':str(user.username),
             'refresh': str(refresh),
             'access': str(refresh.access_token),
         },status=status.HTTP_200_OK)
@@ -89,11 +92,11 @@ class RequestResetPassword(APIView):
         except User.DoesNotExist:
             return Response({"error": "There is no user associated with this email"}, status=status.HTTP_400_BAD_REQUEST)
         
-        token = token_generator.make_token(user)
+        token = token_generator.make_token(user)    
         uid = urlsafe_base64_encode(force_bytes(user.pk))
-        reset_link = f"http://100.27.201.17:8000/reset-password/{uid}/{token}/"
+        reset_link = f"http://54.160.153.61:8000/reset-password/{uid}/{token}/"
         send_mail(
-            "Password Resett",
+            "Password Reset",
             f"Click the link to reset your password: {reset_link}",
             settings.DEFAULT_FROM_EMAIL,
             [email],
