@@ -1,9 +1,12 @@
 from rest_framework.views import APIView
 from .models import Author,Category
 from rest_framework.response import Response
-from .serializers import AuthorSerializer,CategorySerializer
+
+from .serializers import AuthorSerializer,UserSerializer
 from rest_framework import status
+from django.contrib.auth.models import User
 from rest_framework.permissions import IsAuthenticated
+
 
 class AuthorView(APIView):
     def get(self,request,id):
@@ -16,6 +19,7 @@ class AuthorView(APIView):
             }, status=status.HTTP_200_OK) 
         except:
             return Response({'error': 'Author not found'}, status=404)
+
         
 class CategoryView(APIView):
     def get(self,request):
@@ -51,8 +55,15 @@ class ProfileDeleteView(APIView):
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
     
-
-
         
-        
+class ProfileView(APIView):
+    def get(self,request,id):
+        try:
+            user = User.objects.get(id=id)
+            data = UserSerializer(user).data
+            return Response({
+                'data': data  
+            }, status=status.HTTP_200_OK) 
+        except:
+            return Response({'error': 'User not found'}, status=404)
 
