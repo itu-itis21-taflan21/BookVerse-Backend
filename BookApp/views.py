@@ -1,7 +1,7 @@
 from rest_framework.views import APIView
 from .models import Author,Category
 from rest_framework.response import Response
-
+from django.db.models import Count
 from .serializers import AuthorSerializer,UserSerializer,CategorySerializer
 from rest_framework import status
 from django.contrib.auth.models import User
@@ -24,12 +24,15 @@ class AuthorView(APIView):
 class CategoryView(APIView):
     def get(self,request):
         try:
-            catgories = Category.objects.get()
-            data = CategorySerializer(catgories).data
+            categories = Category.objects.annotate(
+                book_count = Count('book_category')
+            ).all()
+            data = CategorySerializer(categories,many=True).data
             return Response({
                 'data': data  
             }, status=status.HTTP_200_OK) 
-        except:
+        except Exception as e:
+            print(f"Error: {str(e)}")
             return Response({'error': 'Categories not found'}, status=404)
 
 
