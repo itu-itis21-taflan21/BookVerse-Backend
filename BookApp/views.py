@@ -10,7 +10,10 @@ from rest_framework.exceptions import NotFound
 
 
 class AuthorView(APIView):
-    def get(self, request, id=None):
+    def get(self, request):
+        
+        id=request.query_params.get("id")
+        limit=int(request.query_params.get("limit",5))
         try:
             if id: 
                 authors = Author.objects.annotate(
@@ -31,7 +34,8 @@ class AuthorView(APIView):
                         'book_books__fav_books',
                         distinct=True
                     )
-                ).all()
+                ).order_by('-fav_book_count','name').all()
+            authors=authors[:limit]
             data = AuthorSerializer(authors, many=True).data
             return Response({
                 'data': data  
@@ -97,32 +101,33 @@ class ProfileView(APIView):
 
 
 class BookView(APIView):
-    def get(self,request):
-        book_id=request.query_params.get("book_id")
-        category=request.query_params.get("category")
-        author=request.query_params.get("author")
-        keyword=request.query_params.get("keyword")
+    def get(self, request):
+
+        book_id = request.query_params.get("book_id")
+        category = request.query_params.get("category_id")
+        author = request.query_params.get("author_id")
+        keyword = request.query_params.get("s")
+        limit = int(request.query_params.get("limit", 10))  # Default limit to 10 if not provided
+
 
         books = Book.objects.all()
         if book_id:
-             books = books.get(id=book_id)
-         
+            books = books.filter(id=book_id)
         if author:
-             books = books.get(author_id=author)
-         
+            books = books.filter(author_id=author)
         if category:
-             books = books.get(category_id=category)
-         
+            books = books.filter(category_id=category)
         if keyword:
-            books = books.get(title=keyword)
-        print(books)
-         #Check if any books match the filters
-        if books:
-            # Serialize the matching books
-            books_data = BookSerializer(books).data
+            books = books.filter(Q(title__icontains=keyword) | Q(author__name__icontains=keyword))
+
+        if not any([book_id, author, category, keyword]):
+            books = books.annotate(favorite_count=Count('fav_books')).order_by('-favorite_count', 'title')
+
+        books = books[:limit]
+        if books.exists():
+            books_data = BookSerializer(books, many=True).data
             return Response({'data': books_data}, status=status.HTTP_200_OK)
         else:
-            # No books found
             return Response({'error': 'No books found matching the criteria.'}, status=status.HTTP_404_NOT_FOUND)
         
         
