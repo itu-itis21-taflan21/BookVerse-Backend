@@ -10,9 +10,11 @@ class BookforAuthorSerializer(serializers.ModelSerializer):
 
 class AuthorSerializer(serializers.ModelSerializer):
     book_books = BookforAuthorSerializer(many=True, read_only=True)
+    book_count = serializers.IntegerField(read_only=True)
+    average_rating = serializers.FloatField(read_only=True)
+    fav_book_count = serializers.IntegerField(read_only=True)
     class Meta:
         model = Author
-
         fields = ['id', 'name','book_count','fav_book_count','average_rating','book_books'] 
     
 class CommentsforUser(serializers.ModelSerializer):

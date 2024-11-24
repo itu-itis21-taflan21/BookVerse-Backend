@@ -4,7 +4,6 @@ from django.contrib.auth.models import User
 
 
 class Category(models.Model):
-    
     name = models.CharField(max_length=255, unique=True)
     def __str__(self):
         return self.name
@@ -12,10 +11,6 @@ class Category(models.Model):
 
 class Author(models.Model):
     name = models.CharField(max_length=255)
-    book_count = models.IntegerField(default=0)
-    average_rating = models.FloatField(default=0.0)
-    fav_book_count = models.IntegerField(default=0)
-
     def __str__(self):
         return self.name
 

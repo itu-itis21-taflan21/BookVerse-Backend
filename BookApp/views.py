@@ -1,24 +1,45 @@
 from rest_framework.views import APIView
 from .models import Author,Category
 from rest_framework.response import Response
-from django.db.models import Count
+from django.db.models import Count,Avg,Q
 from .serializers import AuthorSerializer,UserSerializer,CategorySerializer
 from rest_framework import status
 from django.contrib.auth.models import User
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.exceptions import NotFound
 
 
 class AuthorView(APIView):
-    def get(self,request,id):
+    def get(self, request, id=None):
         try:
-            author = Author.objects.get(id=id)
-            print(author)
-            data = AuthorSerializer(author).data
+            if id: 
+                authors = Author.objects.annotate(
+                    book_count=Count('book_books'),
+                    average_rating=Avg('book_books__rating_books__rating'),
+                    fav_book_count=Count(
+                        'book_books__fav_books',
+                        distinct=True
+                    )
+                ).filter(id=id) 
+                if not authors.exists():
+                    raise NotFound("Author not found")
+            else:
+                authors = Author.objects.annotate(
+                    book_count=Count('book_books'),
+                    average_rating=Avg('book_books__rating_books__rating'),
+                    fav_book_count=Count(
+                        'book_books__fav_books',
+                        distinct=True
+                    )
+                ).all()
+            data = AuthorSerializer(authors, many=True).data
             return Response({
                 'data': data  
-            }, status=status.HTTP_200_OK) 
-        except:
+            }, status=status.HTTP_200_OK)
+        except NotFound:
             return Response({'error': 'Author not found'}, status=404)
+        except Exception as e:
+            return Response({'error': str(e)}, status=500)
 
         
 class CategoryView(APIView):
