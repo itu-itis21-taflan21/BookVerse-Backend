@@ -2,7 +2,7 @@ from rest_framework.views import APIView
 from .models import Author,Category
 from rest_framework.response import Response
 
-from .serializers import AuthorSerializer,UserSerializer
+from .serializers import AuthorSerializer,UserSerializer,CategorySerializer
 from rest_framework import status
 from django.contrib.auth.models import User
 from rest_framework.permissions import IsAuthenticated
@@ -59,6 +59,9 @@ class ProfileDeleteView(APIView):
 class ProfileView(APIView):
     def get(self,request,id):
         try:
+            if str(request.user.id) != str(id):
+                return Response({'error': 'You cannot view other users\' profiles.'}, status=status.HTTP_403_FORBIDDEN)
+            
             user = User.objects.get(id=id)
             data = UserSerializer(user).data
             return Response({

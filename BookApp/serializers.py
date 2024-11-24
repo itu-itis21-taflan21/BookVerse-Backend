@@ -1,5 +1,4 @@
-
-from .models import Author,Book,FavBook,Rating,UserComment,ReadList
+from .models import Author,Book,FavBook,Rating,UserComment,ReadList,Category
 
 from rest_framework import serializers
 from django.contrib.auth.models import User

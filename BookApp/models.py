@@ -23,14 +23,12 @@ class Author(models.Model):
 
 class Book(models.Model):
     title = models.CharField(max_length=255)
-
     author = models.ForeignKey(Author,related_name='book_books', on_delete=models.CASCADE)
-
     summary = models.TextField()
-    cover = models.CharField(max_length=455,default='null')
+    cover = models.CharField(max_length=455, null=True, blank=True)
     category = models.ForeignKey(Category,related_name='book_category', on_delete=models.CASCADE)
     page_count = models.IntegerField()
-    pdf_link = models.CharField(max_length=455)
+    pdf_link = models.CharField(max_length=455, null=True, blank=True)
 
     def __str__(self):
         return self.title
