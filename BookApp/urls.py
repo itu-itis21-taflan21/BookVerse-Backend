@@ -9,5 +9,4 @@ urlpatterns = [
     path('reset-password/', ProfileUpdateView.as_view(), name='reset-password'),
     path('delete-user/', ProfileDeleteView.as_view(), name='delete-user'),
     path('get-book/',BookView.as_view(),name='get-book'),
-    
 ]

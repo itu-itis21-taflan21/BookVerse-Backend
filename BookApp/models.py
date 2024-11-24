@@ -5,32 +5,24 @@ from django.contrib.auth.models import User
 
 class Category(models.Model):
     name = models.CharField(max_length=255, unique=True)
-    book_count = models.IntegerField(default=0)
-
     def __str__(self):
         return self.name
 
 
 class Author(models.Model):
     name = models.CharField(max_length=255)
-    book_count = models.IntegerField(default=0)
-    average_rating = models.FloatField(default=0.0)
-    fav_book_count = models.IntegerField(default=0)
-
     def __str__(self):
         return self.name
 
 
 class Book(models.Model):
     title = models.CharField(max_length=255)
-
     author = models.ForeignKey(Author,related_name='book_books', on_delete=models.CASCADE)
-
     summary = models.TextField()
-    cover = models.CharField(max_length=455,default='null')
+    cover = models.CharField(max_length=455, null=True, blank=True)
     category = models.ForeignKey(Category,related_name='book_category', on_delete=models.CASCADE)
     page_count = models.IntegerField()
-    pdf_link = models.CharField(max_length=455)
+    pdf_link = models.CharField(max_length=455, null=True, blank=True)
 
     def __str__(self):
         return self.title

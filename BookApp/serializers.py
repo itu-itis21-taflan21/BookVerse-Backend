@@ -1,6 +1,4 @@
-
 from .models import Author,Book,FavBook,Rating,UserComment,ReadList,Category
-
 from rest_framework import serializers
 from django.contrib.auth.models import User
 
@@ -11,9 +9,11 @@ class BookforAuthorSerializer(serializers.ModelSerializer):
 
 class AuthorSerializer(serializers.ModelSerializer):
     book_books = BookforAuthorSerializer(many=True, read_only=True)
+    book_count = serializers.IntegerField(read_only=True)
+    average_rating = serializers.FloatField(read_only=True)
+    fav_book_count = serializers.IntegerField(read_only=True)
     class Meta:
         model = Author
-
         fields = ['id', 'name','book_count','fav_book_count','average_rating','book_books'] 
     
 class CommentsforUser(serializers.ModelSerializer):
@@ -50,6 +50,7 @@ class UserSerializer(serializers.ModelSerializer):
 
 
 class CategorySerializer(serializers.ModelSerializer):
+    book_count = serializers.IntegerField(read_only=True) 
     class Meta:
         model = Category
         fields = ['id', 'name','book_count'] 
