@@ -49,6 +49,7 @@ class UserSerializer(serializers.ModelSerializer):
 
 
 class CategorySerializer(serializers.ModelSerializer):
+    book_count = serializers.IntegerField(read_only=True) 
     class Meta:
         model = Category
         fields = ['id', 'name','book_count'] 
