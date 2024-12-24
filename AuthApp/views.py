@@ -10,7 +10,6 @@ from django.contrib.auth.tokens import default_token_generator as token_generato
 from django.shortcuts import get_object_or_404
 from django.contrib.auth import authenticate
 from rest_framework_simplejwt.tokens import RefreshToken
-from rest_framework.permissions import AllowAny
 
 class SignupView(APIView):
     def post(self, request):
