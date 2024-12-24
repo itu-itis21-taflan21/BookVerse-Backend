@@ -51,7 +51,7 @@ class UserComment(models.Model):
     date = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return f"Comment by {self.user.name} on {self.book.title}"
+        return f"Comment by {self.user.username} on {self.book.title}"
 
 
 class Rating(models.Model):
