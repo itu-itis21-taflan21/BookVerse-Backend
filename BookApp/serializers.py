@@ -67,4 +67,15 @@ class BookSerializer(serializers.ModelSerializer):
         model=Book
         fields=['id','title','cover','author','summary','category','page_count','pdf_link']
 
+class BasicUserSerializer(serializers.ModelSerializer):
+    class Meta:
+        model=User
+        fields=['id','username']
+
+class BasicCommentSerializer(serializers.ModelSerializer):
+    user=BasicUserSerializer(many=False,read_only=True)
+    class Meta:
+        model=UserComment
+        fields=['id','content','book_id','user_id','user']
+
 
