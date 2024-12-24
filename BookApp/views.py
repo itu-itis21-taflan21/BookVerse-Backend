@@ -1,7 +1,7 @@
 from rest_framework.views import APIView
-from .models import Author,Category,Book,FavBook,UserComment,Rating
+from .models import Author,Category,Book,FavBook,UserComment,Rating,ReadList
 from rest_framework.response import Response
-from .serializers import AuthorSerializer,UserSerializer,CategorySerializer,BookSerializer
+from .serializers import AuthorSerializer,UserSerializer,CategorySerializer,BasicCommentSerializer,BasicUserSerializer,BookSerializer
 from django.db.models import Count,Avg,Q
 from rest_framework import status
 from django.contrib.auth.models import User
@@ -131,24 +131,42 @@ class BookView(APIView):
             return Response({'error': 'No books found matching the criteria.'}, status=status.HTTP_404_NOT_FOUND)
         
         
-class AddBookToFav(APIView):
+class FavoriteView(APIView):
     permission_classes = [IsAuthenticated]
     def post(self,request):
         user = request.user
         book_id = request.data.get('book_id') 
+
+        if not book_id:
+            return Response({"error": "Book ID is required"}, status=status.HTTP_400_BAD_REQUEST)
         try:
             book = Book.objects.get(id=book_id)
         except Book.DoesNotExist:
             return Response({"error": "Book not found"}, status=status.HTTP_404_NOT_FOUND)
 
-        if FavBook.objects.filter(user=user, book=book).exists():
-            return Response({"error": "This book is already in your favorites"}, status=status.HTTP_400_BAD_REQUEST)
+        fav_entry = FavBook.objects.filter(user=user, book=book).first()
 
-        FavBook.objects.create(user=user, book=book)
-        return Response({"message": "Book added to favorites successfully"}, status=status.HTTP_201_CREATED)
+        if fav_entry:
+            fav_entry.delete()
+            return Response({"message": "Book removed from favorites successfully"}, status=status.HTTP_200_OK)
+        else:
+            FavBook.objects.create(user=user, book=book)
+            return Response({"message": "Book added to favorites successfully"}, status=status.HTTP_201_CREATED)
 
 class CommentView(APIView):
     permission_classes = [IsAuthenticated]
+    def get(self,request):
+        book_id=request.query_params.get('book_id')
+        print(book_id)
+        comments=UserComment.objects.filter(book_id=book_id)
+        print(comments)
+        returndata=BasicCommentSerializer(comments,many=True).data
+        if comments.exists:
+            return Response({'data': returndata}, status=status.HTTP_200_OK)
+        else:
+            return Response({'error': 'No comments found for the book.'}, status=status.HTTP_404_NOT_FOUND)
+        
+        
     def post(self,request):
         user = request.user
         book_id = request.data.get('book_id')
@@ -164,9 +182,24 @@ class CommentView(APIView):
         UserComment.objects.create(user=user, book=book, content=content)
         return Response({"message": "Comment added successfully"}, status=status.HTTP_201_CREATED)
         
-class AddRatingToBook(APIView):
+class RatingView(APIView):
     permission_classes = [IsAuthenticated]
 
+    def get(self,request):
+        user_id=request.user.id
+        print(user_id)
+        book_id=request.query_params.get('book_id')
+        
+        average_rating = Rating.objects.filter(book_id=book_id).aggregate(Avg('rating'))['rating__avg']
+        user_rating=Rating.objects.filter(book_id=book_id,user_id=user_id).get()
+        if average_rating and user_rating:
+            return Response({'avg_rating': average_rating,'user_rating':user_rating.rating}, status=status.HTTP_200_OK)
+        elif average_rating:
+            return Response({'avg_rating': average_rating,'user_rating':None}, status=status.HTTP_200_OK)
+        else:
+            return Response({'error': 'No ratings has found for the book.'}, status=status.HTTP_404_NOT_FOUND)
+    
+    
     def post(self, request):
         user = request.user
         book_id = request.data.get('book_id')
@@ -174,7 +207,7 @@ class AddRatingToBook(APIView):
 
         if rating is None:
             return Response({"error": "Rating is required"}, status=status.HTTP_400_BAD_REQUEST)
-        if not (0 <= int(rating) <= 5):
+        if not (0 <= float(rating) <= 5):
             return Response({"error": "Rating must be between 0 and 5"}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
@@ -191,3 +224,64 @@ class AddRatingToBook(APIView):
         Rating.objects.create(user=user, book=book, rating=rating)
 
         return Response({"message": "Rating added successfully"}, status=status.HTTP_201_CREATED)
+    
+    
+    def put(self, request):
+        user_id = request.user.id
+        book_id = request.data.get('book_id')
+        new_rating = request.data.get('rating')
+
+        if not book_id or not new_rating:
+            return Response(
+                {'error': 'Both book_id and rating are required.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        try:
+            new_rating = float(new_rating)
+            if new_rating < 0 or new_rating > 5:
+                return Response(
+                    {'error': 'Rating must be between 0 and 5.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        except ValueError:
+            return Response(
+                {'error': 'Invalid rating value.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            rating_instance = Rating.objects.get(book_id=book_id, user_id=user_id)
+            rating_instance.rating = new_rating
+            rating_instance.save()
+            return Response(
+                {'message': 'Rating updated successfully.', 'rating': new_rating},
+                status=status.HTTP_200_OK
+            )
+        except Rating.DoesNotExist:
+            return Response(
+                {'error': 'Rating not found for this book by the user.'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+            
+class ReadListView(APIView):
+    permission_classes = [IsAuthenticated]
+    def post(self,request):
+        user_id = request.user.id
+        book_id = request.data.get('book_id') 
+
+        if not book_id:
+            return Response({"error": "Book ID is required"}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            book = Book.objects.get(id=book_id)
+        except Book.DoesNotExist:
+            return Response({"error": "Book not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        readlist_entry = ReadList.objects.filter(user_id=user_id, book_id=book_id).first()
+
+        if readlist_entry:
+            readlist_entry.delete()
+            return Response({"message": "Book removed from readlist successfully"}, status=status.HTTP_200_OK)
+        else:
+            ReadList.objects.create(user_id=user_id, book_id=book_id)
+            return Response({"message": "Book added to readlist successfully"}, status=status.HTTP_201_CREATED)
