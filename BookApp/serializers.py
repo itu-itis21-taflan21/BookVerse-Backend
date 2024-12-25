@@ -1,6 +1,7 @@
 from .models import Author,Book,FavBook,Rating,UserComment,ReadList,Category
 from rest_framework import serializers
 from django.contrib.auth.models import User
+from django.db.models import Avg
 
 class BookforAuthorSerializer(serializers.ModelSerializer):
     class Meta:
@@ -63,9 +64,15 @@ class BasicAuthorSerializer(serializers.ModelSerializer):
 class BookSerializer(serializers.ModelSerializer):
     author=BasicAuthorSerializer(many=False,read_only=True)
     category=CategorySerializer(many=False,read_only=True)
+    average_rating=serializers.SerializerMethodField()
     class Meta:
         model=Book
-        fields=['id','title','cover','author','summary','category','page_count','pdf_link']
+        fields=['id','title','cover','author','summary','category','page_count','pdf_link','average_rating']
+    
+    def get_average_rating(self, obj):
+        # Assuming Rating is the related model and it has a 'book' field and a 'rating' field
+        average_rating = Rating.objects.filter(book=obj).aggregate(Avg('rating'))['rating__avg']
+        return average_rating if average_rating is not None else 0 
 
 class BasicUserSerializer(serializers.ModelSerializer):
     class Meta:
