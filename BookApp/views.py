@@ -157,9 +157,7 @@ class CommentView(APIView):
     permission_classes = [IsAuthenticated]
     def get(self,request):
         book_id=request.query_params.get('book_id')
-        print(book_id)
         comments=UserComment.objects.filter(book_id=book_id)
-        print(comments)
         returndata=BasicCommentSerializer(comments,many=True).data
         if comments.exists:
             return Response({'data': returndata}, status=status.HTTP_200_OK)
