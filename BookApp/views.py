@@ -153,6 +153,14 @@ class FavoriteView(APIView):
             FavBook.objects.create(user=user, book=book)
             return Response({"message": "Book added to favorites successfully"}, status=status.HTTP_201_CREATED)
 
+    def get(self,request):
+        user_id=request.user.id
+        book_id = request.query_params.get("book_id")
+        is_favorite=FavBook.objects.filter(user_id=user_id,book_id=book_id)
+        if is_favorite:
+            return Response({'data':True},status=status.HTTP_200_OK)
+        else:
+            return Response({'data':False},status=status.HTTP_200_OK)
 class CommentView(APIView):
     permission_classes = [IsAuthenticated]
     def get(self,request):
@@ -280,3 +288,12 @@ class ReadListView(APIView):
         else:
             ReadList.objects.create(user_id=user_id, book_id=book_id)
             return Response({"message": "Book added to readlist successfully"}, status=status.HTTP_201_CREATED)
+        
+    def get(self,request):
+        user_id=request.user.id
+        book_id = request.query_params.get("book_id")
+        is_readlist=ReadList.objects.filter(user_id=user_id,book_id=book_id)
+        if is_readlist:
+            return Response({'data':True},status=status.HTTP_200_OK)
+        else:
+            return Response({'data':False},status=status.HTTP_200_OK)

@@ -16,4 +16,6 @@ urlpatterns = [
     path('get-rating/',RatingView.as_view(),name='get-rating'),
     path('update-rating/',RatingView.as_view(),name='update-rating'),
     path('add-to-readlist/',ReadListView.as_view(),name='add-to-readlist'),
+    path('get-fav/',FavoriteView.as_view(),name='get-fav'),
+    path('get-readlist/',ReadListView.as_view(),name='get-readlist'),
 ]
