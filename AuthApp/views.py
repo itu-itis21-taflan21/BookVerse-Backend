@@ -10,77 +10,218 @@ from django.contrib.auth.tokens import default_token_generator as token_generato
 from django.shortcuts import get_object_or_404
 from django.contrib.auth import authenticate
 from rest_framework_simplejwt.tokens import RefreshToken
+from django.core.cache import cache
+from django.core.validators import validate_email
+from django.core.exceptions import ValidationError
+from django.contrib.auth.password_validation import validate_password
+from rest_framework.throttling import BaseThrottle
+from django.template.loader import render_to_string
+
+MAX_LOGIN_ATTEMPTS = 5
+LOCKOUT_TIME = 60 * 15
+MIN_PASSWORD_LENGTH = 8
+
+class LoginRateThrottle(BaseThrottle):
+    def get_cache_key(self, request, view):
+        return f'login_attempts_{request.data.get("email", "")}'
+
+    def allow_request(self, request, view):
+        if request.method != 'POST':
+            return True
+
+        email = request.data.get('email', '')
+        if not email:
+            return True
+
+        key = self.get_cache_key(request, view)
+        attempts = cache.get(key, 0)
+        
+        if attempts >= MAX_LOGIN_ATTEMPTS:
+            return False
+        return True
+    def wait(self):
+        return LOCKOUT_TIME
+
 
 class SignupView(APIView):
     def post(self, request):
-        username = request.data.get('username')
-        email = request.data.get('email')
-        password = request.data.get('password')
+        username = request.data.get('username', '').strip()
+        email = request.data.get('email', '').strip()
+        password = request.data.get('password', '')
 
-        if not username or not email or not password:
-            return Response({"error": "All fields are required"}, status=status.HTTP_400_BAD_REQUEST)
+        if not all([username, email, password]):
+            return Response(
+                {"error": "All fields are required"}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
-        if User.objects.filter(email=email).exists():
-            return Response({"error": "Email already exists"}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            validate_email(email)
+        except ValidationError:
+            return Response(
+                {"error": "Invalid email format"}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        if len(username) > 150:  
+            return Response(
+                {"error": "Username is too long"}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
-        user = User.objects.create_user(username=username, email=email, password=password)
-        user.is_active = False  
-        user.save()
+        try:
+            validate_password(password)
+        except ValidationError as e:
+            return Response(
+                {"error": list(e.messages)}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
+        if User.objects.filter(email__iexact=email).exists():
+            return Response(
+                {"error": "Email already exists"}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if User.objects.filter(username__iexact=username).exists():
+            return Response(
+                {"error": "Username already exists"}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            user = User.objects.create_user(
+                username=username,
+                email=email,
+                password=password
+            )
+            user.is_active = False
+            user.save()
+            self.send_verification_email(user)
+            return Response(
+                {"message": "User created. Please check your email to activate your account."}, 
+                status=status.HTTP_201_CREATED
+            )
+        except Exception as e:
+            return Response(
+                {"error": str(e)}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+    def send_verification_email(self, user):
         token = token_generator.make_token(user)
         uid = urlsafe_base64_encode(force_bytes(user.pk))
-        verification_link = f"http://54.160.153.61:8000/verify-email/{uid}/{token}/"
+        verification_link = f"{settings.FRONTEND_URL}/verify-email/{uid}/{token}/"
         
         send_mail(
-            "Verify your email",
-            f"Click the link to verify your email: {verification_link}",
-            settings.DEFAULT_FROM_EMAIL,
-            [email],
+            subject="Verify your email",
+            message=f"Click the link to verify your email: {verification_link}",
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[user.email],
+            html_message = render_to_string('email/verify_email.html', {
+                'user': user,
+                'verification_link': verification_link
+            })
         )
-
-        return Response({"message": "User created. Check your email to activate your account."}, status=status.HTTP_201_CREATED)
     
 class VerifyEmailView(APIView):
     def get(self, request, uid, token):
         try:
             uid = force_str(urlsafe_base64_decode(uid))
-            user = get_object_or_404(User, pk=uid)
-            if user.is_active==False:
-                if token_generator.check_token(user, token):
-                    user.is_active = True
-                    user.save()
-                    return Response({"message": "Email verified successfully"}, status=status.HTTP_200_OK)
-                else:
-                    return Response({"error": "Invalid or expired token"}, status=status.HTTP_400_BAD_REQUEST)
-            else:
-                return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-        except Exception as e:
-            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+            user = User.objects.get(pk=uid)
+            
+            if user.is_active:
+                return Response(
+                    {"error": "Email is already verified"}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            if not token_generator.check_token(user, token):
+                return Response(
+                    {"error": "Invalid or expired verification token"}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            user.is_active = True
+            user.save()
+            
+            # Generate tokens for automatic login after verification
+            refresh = RefreshToken.for_user(user)
+            return Response({
+                "message": "Email verified successfully",
+                "tokens": {
+                    "refresh": str(refresh),
+                    "access": str(refresh.access_token)
+                }
+            }, status=status.HTTP_200_OK)
+
+        except (TypeError, ValueError, OverflowError):
+            return Response(
+                {"error": "Invalid verification link"}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        except User.DoesNotExist:
+            return Response(
+                {"error": "User not found"}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
         
 
 class LoginView(APIView):
-    def post(self,request):
-        email = request.data.get('email')
-        password = request.data.get('password')
+    def post(self, request):
+        email = request.data.get('email', '').strip()
+        password = request.data.get('password', '')
 
-        if  not email or not password:
-            return Response({"error": "All fields are required"}, status=status.HTTP_400_BAD_REQUEST)
+        if not email or not password:
+            return Response(
+                {"error": "Both email and password are required"}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        cache_key = f'login_attempts_{email}'
+        attempts = cache.get(cache_key, 0)
+
+        if attempts >= MAX_LOGIN_ATTEMPTS:
+            return Response(
+                {
+                    'error': 'Too many failed login attempts',
+                    'wait_time': f'{LOCKOUT_TIME//60} minutes'
+                },
+                status=status.HTTP_429_TOO_MANY_REQUESTS
+            )
+
         try:
             user = User.objects.get(email=email)
-        except User.DoesNotExist:
-            return Response({"error": "There is no user associated with this email"}, status=status.HTTP_400_BAD_REQUEST)
+            
+            if not user.is_active:
+                return Response(
+                    {"error": "Please verify your email first"}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
 
-        user = authenticate(request, username=user.username, password=password)
-        if not user :
-            return Response({"error": "Invalid password"}, status=status.HTTP_400_BAD_REQUEST)
-        
-        refresh = RefreshToken.for_user(user)
-        return Response({
-            'username':str(user.username),
-            'refresh': str(refresh),
-            'access': str(refresh.access_token),
-        },status=status.HTTP_200_OK)
-    
+            if user.check_password(password):
+                cache.delete(cache_key)
+                refresh = RefreshToken.for_user(user)
+                return Response({
+                    'username': user.username,
+                    'email': user.email,
+                    'refresh': str(refresh),
+                    'access': str(refresh.access_token),
+                })
+            else:
+                cache.set(cache_key, attempts + 1, LOCKOUT_TIME)
+                return Response(
+                    {"error": "Invalid credentials"}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+        except User.DoesNotExist:
+            cache.set(cache_key, attempts + 1, LOCKOUT_TIME)
+            return Response(
+                {"error": "Invalid credentials"}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+ 
 class RequestResetPassword(APIView):
     def post(self,request):
         email = request.data.get('email')
@@ -106,18 +247,76 @@ class RequestResetPassword(APIView):
 
 class HandleResetPassword(APIView):
     def post(self, request, uid, token):
+        if not request.data.get('new_password'):
+            return Response(
+                {"error": "New password is required"}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
         try:
             uid = force_str(urlsafe_base64_decode(uid))
-            user = get_object_or_404(User, pk=uid)
+            user = User.objects.get(pk=uid)
 
-            if not user or not token_generator.check_token(user, token):
-                return Response({"error": "Invalid or expired token"}, status=status.HTTP_400_BAD_REQUEST)
-          
+            # Check token first
+            if not token_generator.check_token(user, token):
+                return Response(
+                    {"error": "Invalid or expired reset link"}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            # Then check if user is active
+            if not user.is_active:
+                return Response(
+                    {"error": "Account is not active. Please verify your email first"}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
             new_password = request.data.get('new_password')
+            
+            try:
+                validate_password(new_password)
+            except ValidationError as e:
+                return Response(
+                    {"error": list(e.messages)}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            if user.check_password(new_password):
+                return Response(
+                    {"error": "New password must be different from current password"}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
             user.set_password(new_password)
             user.save()
-            return Response({"message": "Password has been reset successfully."}, status=status.HTTP_200_OK)
-        
-        except Exception as e:
-            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+            RefreshToken.for_user(user)
+
+            # Send confirmation email
+            send_mail(
+                "Password Reset Successful",
+                "Your password has been successfully reset. If you didn't make this change, please contact support immediately.",
+                settings.DEFAULT_FROM_EMAIL,
+                [user.email],
+                html_message=render_to_string('email/password_reset_success.html', {
+                    'user': user
+                })
+            )
+
+            return Response({
+                "message": "Password reset successful. You can now login with your new password."
+            }, status=status.HTTP_200_OK)
+
+        except (TypeError, ValueError, OverflowError):
+            return Response(
+                {"error": "Invalid reset link format"}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        except User.DoesNotExist:
+            return Response(
+                {"error": "User not found"}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+
 
