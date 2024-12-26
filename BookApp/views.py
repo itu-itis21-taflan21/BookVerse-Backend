@@ -153,13 +153,19 @@ class FavoriteView(APIView):
             FavBook.objects.create(user=user, book=book)
             return Response({"message": "Book added to favorites successfully"}, status=status.HTTP_201_CREATED)
 
+    def get(self,request):
+        user_id=request.user.id
+        book_id = request.query_params.get("book_id")
+        is_favorite=FavBook.objects.filter(user_id=user_id,book_id=book_id)
+        if is_favorite:
+            return Response({'data':True},status=status.HTTP_200_OK)
+        else:
+            return Response({'data':False},status=status.HTTP_200_OK)
 class CommentView(APIView):
     permission_classes = [IsAuthenticated]
     def get(self,request):
         book_id=request.query_params.get('book_id')
-        print(book_id)
         comments=UserComment.objects.filter(book_id=book_id)
-        print(comments)
         returndata=BasicCommentSerializer(comments,many=True).data
         if comments.exists:
             return Response({'data': returndata}, status=status.HTTP_200_OK)
@@ -187,17 +193,14 @@ class RatingView(APIView):
 
     def get(self,request):
         user_id=request.user.id
-        print(user_id)
         book_id=request.query_params.get('book_id')
         
-        average_rating = Rating.objects.filter(book_id=book_id).aggregate(Avg('rating'))['rating__avg']
+        
         user_rating=Rating.objects.filter(book_id=book_id,user_id=user_id).get()
-        if average_rating and user_rating:
-            return Response({'avg_rating': average_rating,'user_rating':user_rating.rating}, status=status.HTTP_200_OK)
-        elif average_rating:
-            return Response({'avg_rating': average_rating,'user_rating':None}, status=status.HTTP_200_OK)
+        if user_rating:
+            return Response({'user_rating':user_rating.rating}, status=status.HTTP_200_OK)
         else:
-            return Response({'error': 'No ratings has found for the book.'}, status=status.HTTP_404_NOT_FOUND)
+            return Response({'error': 'No ratings for user found for the book.'}, status=status.HTTP_404_NOT_FOUND)
     
     
     def post(self, request):
@@ -285,3 +288,12 @@ class ReadListView(APIView):
         else:
             ReadList.objects.create(user_id=user_id, book_id=book_id)
             return Response({"message": "Book added to readlist successfully"}, status=status.HTTP_201_CREATED)
+        
+    def get(self,request):
+        user_id=request.user.id
+        book_id = request.query_params.get("book_id")
+        is_readlist=ReadList.objects.filter(user_id=user_id,book_id=book_id)
+        if is_readlist:
+            return Response({'data':True},status=status.HTTP_200_OK)
+        else:
+            return Response({'data':False},status=status.HTTP_200_OK)
