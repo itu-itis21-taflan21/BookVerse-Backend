@@ -86,12 +86,11 @@ class ProfileDeleteView(APIView):
         
 class ProfileView(APIView):
     permission_classes = [IsAuthenticated]
-    def get(self,request,id):
+    def get(self,request):
         try:
-
-            if request.user.id != id and not request.user.is_staff:
-                return Response({'error': 'You are not allowed to access this user\'s data'}, status=status.HTTP_403_FORBIDDEN)
-            user = User.objects.get(id=id)
+            user_id=request.user.id
+            
+            user = User.objects.get(id=user_id)
             data = UserSerializer(user).data
             return Response({
                 'data': data  
