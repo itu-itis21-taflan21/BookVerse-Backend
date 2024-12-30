@@ -22,4 +22,5 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('',include('AuthApp.urls')),
     path('',include('BookApp.urls')),
+    path('',include('AdminApp.urls')),
 ]
