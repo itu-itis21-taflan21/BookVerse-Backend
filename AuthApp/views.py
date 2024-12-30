@@ -38,7 +38,16 @@ class LoginRateThrottle(BaseThrottle):
         
         if attempts >= MAX_LOGIN_ATTEMPTS:
             return False
+        if not self.is_successful_login(request):
+            cache.set(key, attempts + 1, LOCKOUT_TIME)
         return True
+    
+    def is_successful_login(self, request):
+        email = request.data.get('email', '')
+        password = request.data.get('password', '')
+        user = authenticate(email=email, password=password)
+        return user is not None and user.is_active
+    
     def wait(self):
         return LOCKOUT_TIME
 
@@ -223,26 +232,46 @@ class LoginView(APIView):
             )
  
 class RequestResetPassword(APIView):
-    def post(self,request):
+    def post(self, request):
         email = request.data.get('email')
-        if  not email:
-            return Response({"error": "All fields are required"}, status=status.HTTP_400_BAD_REQUEST)
+        if not email:
+            return Response({"error": "Email is required"}, status=status.HTTP_400_BAD_REQUEST)
+        
         try:
             user = User.objects.get(email=email)
-        except User.DoesNotExist:
-            return Response({"error": "There is no user associated with this email"}, status=status.HTTP_400_BAD_REQUEST)
-        
-        token = token_generator.make_token(user)    
-        uid = urlsafe_base64_encode(force_bytes(user.pk))
-        reset_link = f"http://54.160.153.61:8000/reset-password/{uid}/{token}/"
-        send_mail(
-            "Password Reset",
-            f"Click the link to reset your password: {reset_link}",
-            settings.DEFAULT_FROM_EMAIL,
-            [email],
-        )
+            
+            # Add check for inactive user
+            if not user.is_active:
+                return Response(
+                    {"error": "Account is not active. Please verify your email first"}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
 
-        return Response({"message": "Password reset link is sent to your email."}, status=status.HTTP_201_CREATED)
+            token = token_generator.make_token(user)    
+            uid = urlsafe_base64_encode(force_bytes(user.pk))
+            reset_link = f"{settings.FRONTEND_URL}/reset-password/{uid}/{token}/"
+            
+            send_mail(
+                "Password Reset",
+                f"Click the link to reset your password: {reset_link}",
+                settings.DEFAULT_FROM_EMAIL,
+                [email],
+                html_message=render_to_string('email/password_reset.html', {
+                    'user': user,
+                    'reset_link': reset_link
+                })
+            )
+
+            return Response(
+                {"message": "Password reset link sent to your email"}, 
+                status=status.HTTP_201_CREATED
+            )
+            
+        except User.DoesNotExist:
+            return Response(
+                {"error": "No user found with this email"}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
     
 
 class HandleResetPassword(APIView):
