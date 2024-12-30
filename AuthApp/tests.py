@@ -7,7 +7,7 @@ from django.core import mail
 from django.utils.http import urlsafe_base64_encode
 from django.utils.encoding import force_bytes
 from django.contrib.auth.tokens import default_token_generator
-from django.db import connections
+from django.core.cache import cache
 
 class AuthViewsTest(TestCase):
     # Override 
@@ -26,7 +26,8 @@ class AuthViewsTest(TestCase):
         )
         self.test_user.is_active = True
         self.test_user.save()
-
+        cache.clear()  
+  
     def test_signup_success(self):
         data = {
             'username': 'newuser',
@@ -344,7 +345,7 @@ class AuthViewsTest(TestCase):
         uid = urlsafe_base64_encode(force_bytes(user.pk))
         token = default_token_generator.make_token(user)
         reset_url = reverse('reset-password', kwargs={'uid': uid, 'token': token})
-        data = {'new_password': 'testpass123'} 
+        data = {'new_password': 'MySecurePass1'} 
         response = self.client.post(reset_url, data)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
@@ -375,7 +376,7 @@ class AuthViewsTest(TestCase):
 
         response = self.client.post(self.login_url, {
             'email': 'test@example.com',
-            'password': 'testpass123'
+            'password': 'MySecurePass1'
         })
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         response = self.client.post(self.login_url, {
