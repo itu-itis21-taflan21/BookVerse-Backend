@@ -44,6 +44,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'BookApp',
     'AuthApp',
+    'AdminApp',
 ]
 
 MIDDLEWARE = [

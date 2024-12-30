@@ -47,7 +47,7 @@ class UserSerializer(serializers.ModelSerializer):
     rating_user=RatingforUser(many=True,read_only=True)
     class Meta:
         model=User
-        fields = ['id','username','email','date_joined','fav_user','read_user','comment_user','rating_user']
+        fields = ['id','username','email','is_superuser','date_joined','fav_user','read_user','comment_user','rating_user']
 
 
 class CategorySerializer(serializers.ModelSerializer):
