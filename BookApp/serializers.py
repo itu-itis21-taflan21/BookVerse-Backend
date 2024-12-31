@@ -67,10 +67,9 @@ class BookSerializer(serializers.ModelSerializer):
     average_rating=serializers.SerializerMethodField()
     class Meta:
         model=Book
-        fields=['id','title','cover','author','summary','category','page_count','pdf_link','average_rating']
+        fields=['id','title','cover','author','summary','category','page_count','average_rating']
     
     def get_average_rating(self, obj):
-        # Assuming Rating is the related model and it has a 'book' field and a 'rating' field
         average_rating = Rating.objects.filter(book=obj).aggregate(Avg('rating'))['rating__avg']
         return average_rating if average_rating is not None else 0 
 
