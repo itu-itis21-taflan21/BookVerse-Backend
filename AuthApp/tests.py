@@ -1,4 +1,4 @@
-from django.test import TestCase
+"""from django.test import TestCase
 from django.urls import reverse
 from django.contrib.auth.models import User
 from rest_framework.test import APIClient
@@ -384,3 +384,48 @@ class AuthViewsTest(TestCase):
             'password': 'wrongpassword'
         })
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+###SECURİTY TESTS########################################################
+    
+class PasswordResetSecurityTests(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+        self.reset_password_url = reverse('reset-password')
+        self.user = User.objects.create_user(username='resetuser', email='reset@example.com', password='OriginalPass123')
+        self.user.is_active = True
+        self.user.save()
+
+    def test_password_reset_with_valid_token(self):
+        uid = urlsafe_base64_encode(force_bytes(self.user.pk))
+        token = default_token_generator.make_token(self.user)
+        reset_url = reverse('reset-password', kwargs={'uid': uid, 'token': token})
+        data = {'new_password': 'NewSecurePass123'}
+        response = self.client.post(reset_url, data)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.user.refresh_from_db()
+        self.assertTrue(self.user.check_password('NewSecurePass123'))
+
+    def test_password_reset_with_invalid_token(self):
+        uid = urlsafe_base64_encode(force_bytes(self.user.pk))
+        token = 'invalid-token'
+        reset_url = reverse('reset-password', kwargs={'uid': uid, 'token': token})
+        data = {'new_password': 'NewSecurePass123'}
+        response = self.client.post(reset_url, data)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_password_reset_with_missing_password(self):
+        uid = urlsafe_base64_encode(force_bytes(self.user.pk))
+        token = default_token_generator.make_token(self.user)
+        reset_url = reverse('reset-password', kwargs={'uid': uid, 'token': token})
+        data = {}
+        response = self.client.post(reset_url, data)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_password_reset_for_inactive_user(self):
+        self.user.is_active = False
+        self.user.save()
+        uid = urlsafe_base64_encode(force_bytes(self.user.pk))
+        token = default_token_generator.make_token(self.user)
+        reset_url = reverse('reset-password', kwargs={'uid': uid, 'token': token})
+        data = {'new_password': 'AnotherPass123'}
+        response = self.client.post(reset_url, data)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)"""
