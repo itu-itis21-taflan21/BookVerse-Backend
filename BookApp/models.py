@@ -7,12 +7,16 @@ class Category(models.Model):
     name = models.CharField(max_length=255, unique=True)
     def __str__(self):
         return self.name
+    class Meta:
+        db_table = "BookApp_category_2"
 
 
 class Author(models.Model):
     name = models.CharField(max_length=255)
     def __str__(self):
         return self.name
+    class Meta:
+        db_table = "BookApp_author_2"
 
 
 class Book(models.Model):
@@ -22,10 +26,12 @@ class Book(models.Model):
     cover = models.CharField(max_length=455, null=True, blank=True)
     category = models.ForeignKey(Category,related_name='book_category', on_delete=models.CASCADE)
     page_count = models.IntegerField()
-    pdf_link = models.CharField(max_length=455, null=True, blank=True)
+    embedding = models.JSONField()
 
     def __str__(self):
         return self.title
+    class Meta:
+        db_table = "BookApp_book_2"
 
 
 class FavBook(models.Model):

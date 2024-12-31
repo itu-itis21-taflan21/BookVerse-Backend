@@ -11,7 +11,6 @@ from rest_framework.exceptions import NotFound
 
 class AuthorView(APIView):
     def get(self, request):
-        
         id=request.query_params.get("id")
         limit=int(request.query_params.get("limit",5))  
         try:
@@ -49,9 +48,15 @@ class AuthorView(APIView):
 class CategoryView(APIView):
     def get(self,request):
         try:
-            categories = Category.objects.annotate(
-                book_count = Count('book_category')
-            ).all()
+            category_id = request.query_params.get("category_id")
+            if category_id: 
+                categories = Category.objects.filter(id=category_id).annotate(
+                    book_count=Count('book_category')
+                )
+            else:
+                categories = Category.objects.annotate(
+                    book_count=Count('book_category')
+                ).all()
             data = CategorySerializer(categories,many=True).data
             return Response({
                 'data': data  
