@@ -40,6 +40,7 @@ class FavBook(models.Model):
 
     class Meta:
         unique_together = ('book', 'user')
+        db_table="BookApp_favbook_2"
 
 
 class ReadList(models.Model):

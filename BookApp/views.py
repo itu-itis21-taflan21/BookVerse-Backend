@@ -115,7 +115,7 @@ class BookView(APIView):
         category = request.query_params.get("category_id")
         author = request.query_params.get("author_id")
         keyword = request.query_params.get("s")
-        limit = int(request.query_params.get("limit", 10)) 
+        limit = request.query_params.get("limit")
 
 
         books = Book.objects.all()
@@ -130,8 +130,8 @@ class BookView(APIView):
 
         if not any([book_id, author, category, keyword]):
             books = books.annotate(favorite_count=Count('fav_books')).order_by('-favorite_count', 'title')
-
-        books = books[:limit]
+        if limit:
+            books = books[:limit]
         if books.exists():
             books_data = BookSerializer(books, many=True).data
             return Response({'data': books_data}, status=status.HTTP_200_OK)
