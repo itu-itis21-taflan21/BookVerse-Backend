@@ -13,6 +13,13 @@ from django.db import connection
 from supabase import create_client
 
 
+model = AutoModel.from_pretrained("avsolatorio/NoInstruct-small-Embedding-v0")
+tokenizer = AutoTokenizer.from_pretrained("avsolatorio/NoInstruct-small-Embedding-v0")
+
+url = "https://dujnhstimlhkodtayygi.supabase.co"
+key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR1am5oc3RpbWxoa29kdGF5eWdpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzE4NDI1NDgsImV4cCI6MjA0NzQxODU0OH0.8JpiFgmTtzwl1RS6xrz3npVog1XhjgqqhXQX6rvBvmE"
+client = create_client(url, key)
+
 class AuthorView(APIView):
     def get(self, request):
         id=request.query_params.get("id")
@@ -313,12 +320,7 @@ def get_embedding(sentences, model, tokenizer):
         outputs = model(**inputs)
         embeddings = outputs.last_hidden_state.mean(dim=1)
     return embeddings
-model = AutoModel.from_pretrained("avsolatorio/NoInstruct-small-Embedding-v0")
-tokenizer = AutoTokenizer.from_pretrained("avsolatorio/NoInstruct-small-Embedding-v0")
 
-url = "https://dujnhstimlhkodtayygi.supabase.co"
-key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR1am5oc3RpbWxoa29kdGF5eWdpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzE4NDI1NDgsImV4cCI6MjA0NzQxODU0OH0.8JpiFgmTtzwl1RS6xrz3npVog1XhjgqqhXQX6rvBvmE"
-client = create_client(url, key)
 
 class SemanticSearchView(APIView):
     def post(self, request):
@@ -346,8 +348,9 @@ class SemanticSearchView(APIView):
 
 
 class RecommendBooksView(APIView):
-    def post(self, request):
-        user_id = int(request.data.get("user_id", 0))
+    permission_classes=[IsAuthenticated]
+    def get(self, request):
+        user_id = request.user.id
         top_n = int(request.data.get("top_n", 10))
         similarity_threshold = float(request.data.get("similarity_threshold", 0.8))
 
