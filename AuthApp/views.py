@@ -21,36 +21,6 @@ MAX_LOGIN_ATTEMPTS = 5
 LOCKOUT_TIME = 60 * 15
 MIN_PASSWORD_LENGTH = 8
 
-class LoginRateThrottle(BaseThrottle):
-    def get_cache_key(self, request, view):
-        return f'login_attempts_{request.data.get("email", "")}'
-
-    def allow_request(self, request, view):
-        if request.method != 'POST':
-            return True
-
-        email = request.data.get('email', '')
-        if not email:
-            return True
-
-        key = self.get_cache_key(request, view)
-        attempts = cache.get(key, 0)
-        
-        if attempts >= MAX_LOGIN_ATTEMPTS:
-            return False
-        if not self.is_successful_login(request):
-            cache.set(key, attempts + 1, LOCKOUT_TIME)
-        return True
-    
-    def is_successful_login(self, request):
-        email = request.data.get('email', '')
-        password = request.data.get('password', '')
-        user = authenticate(email=email, password=password)
-        return user is not None and user.is_active
-    
-    def wait(self):
-        return LOCKOUT_TIME
-
 
 class SignupView(APIView):
     def post(self, request):
