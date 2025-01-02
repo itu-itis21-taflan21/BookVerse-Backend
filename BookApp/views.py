@@ -7,6 +7,10 @@ from rest_framework import status
 from django.contrib.auth.models import User
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.exceptions import NotFound
+import torch
+from transformers import AutoTokenizer, AutoModel
+from django.db import connection
+from supabase import create_client
 
 
 class AuthorView(APIView):
@@ -301,3 +305,65 @@ class ReadListView(APIView):
             return Response({'data':True},status=status.HTTP_200_OK)
         else:
             return Response({'data':False},status=status.HTTP_200_OK)
+        
+
+def get_embedding(sentences, model, tokenizer):
+    inputs = tokenizer(sentences, padding=True, truncation=True, return_tensors="pt")
+    with torch.no_grad():
+        outputs = model(**inputs)
+        embeddings = outputs.last_hidden_state.mean(dim=1)
+    return embeddings
+model = AutoModel.from_pretrained("avsolatorio/NoInstruct-small-Embedding-v0")
+tokenizer = AutoTokenizer.from_pretrained("avsolatorio/NoInstruct-small-Embedding-v0")
+
+url = "https://dujnhstimlhkodtayygi.supabase.co"
+key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR1am5oc3RpbWxoa29kdGF5eWdpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzE4NDI1NDgsImV4cCI6MjA0NzQxODU0OH0.8JpiFgmTtzwl1RS6xrz3npVog1XhjgqqhXQX6rvBvmE"
+client = create_client(url, key)
+
+class SemanticSearchView(APIView):
+    def post(self, request):
+        query = request.data.get("key", "")
+        match_threshold = float(request.data.get("match_threshold", 0.7))
+        match_count = int(request.data.get("match_count", 10))
+
+        try:
+            embedding = get_embedding(query, model, tokenizer).tolist()[0]
+            response = client.rpc(
+                "semantic_search",
+                {
+                    "query_embedding": embedding,
+                    "match_threshold": match_threshold,
+                    "match_count": match_count,
+                },
+            ).execute()
+
+            if response.data:
+                return Response({"status": "success", "recommendations": response.data}, status=status.HTTP_200_OK)
+            else:
+                return Response({"status": "error", "message": "Cannot find similar results."}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return Response({"status": "error", "message": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class RecommendBooksView(APIView):
+    def post(self, request):
+        user_id = int(request.data.get("user_id", 0))
+        top_n = int(request.data.get("top_n", 10))
+        similarity_threshold = float(request.data.get("similarity_threshold", 0.8))
+
+        try:
+            response = client.rpc(
+                "recommend_books",
+                {
+                    "get_user_id": user_id,
+                    "top_n": top_n,
+                    "similarity_threshold": similarity_threshold,
+                },
+            ).execute()
+
+            if response.data:
+                return Response({"status": "success", "recommendations": response.data}, status=status.HTTP_200_OK)
+            else:
+                return Response({"status": "error", "message": "Cannot find similar results."}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return Response({"status": "error", "message": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
