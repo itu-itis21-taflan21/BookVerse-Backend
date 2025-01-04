@@ -1,5 +1,6 @@
 from django.db import models
 from django.contrib.auth.models import User
+from pgvector.django import VectorField
 
 
 
@@ -26,7 +27,7 @@ class Book(models.Model):
     cover = models.CharField(max_length=455, null=True, blank=True)
     category = models.ForeignKey(Category,related_name='book_category', on_delete=models.CASCADE)
     page_count = models.IntegerField()
-    embedding = models.JSONField(null=True)
+    embedding = VectorField(null=True)
 
     def __str__(self):
         return self.title
