@@ -36,12 +36,8 @@ class DjangoAPIUser(HttpUser):
     @task(2)
     def book_details(self):
         book_id = random.randint(1, 100)
-        self.client.get(f"/get-book/?book_id={book_id}", headers=self.headers)
+        self.client.get(f"get-book/?book_id={book_id}", headers=self.headers)
 
     def on_stop(self):
         if self.token:
-            response = self.client.get("logout/", headers=self.headers)
-            if response.status_code == 204:
-                print(f"User {self.username} logged out successfully.")
-            else:
-                print(f"Failed to log out user {self.username}: {response.text}")
+            print("Tüh")
