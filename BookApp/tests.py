@@ -1,17 +1,18 @@
 from django.test import TestCase
 from django.contrib.auth.models import User
 from .models import Book, Category, Author, FavBook, ReadList, UserComment, Rating
-from .serializers import BookSerializer, CategorySerializer, AuthorSerializer, UserSerializer, RatingforUser,CommentsforUser, FavBookSerializer, ReadBooksSerializer
+from .serializers import BookSerializer, CategorySerializer, AuthorSerializer, UserSerializer, RatingforUser,CommentsforUser, FavBookSerializer, ReadBooksSerializer,BasicUserSerializer,BasicAuthorSerializer,BasicCommentSerializer
 from .models import Book, Category, Author, FavBook, UserComment, Rating, ReadList
 from rest_framework.test import APIClient
 from rest_framework import status
 from django.urls import reverse
 from django.contrib.auth.models import User
 from rest_framework import status
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
+from rest_framework.test import APITestCase
+from unittest.mock import patch, Mock
 
 
-''' 
 class CategoryViewTests(TestCase):
     def setUp(self):
         self.category1 = Category.objects.create(name="Category 1")
@@ -644,11 +645,6 @@ class ReadListViewTests(TestCase):
         response = self.client.get(reverse('get-readlist'), {'book_id': self.book1.id})
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
-'''
-
-from rest_framework.test import APITestCase
-from unittest.mock import patch, Mock
-
 class SemanticSearchViewTests(APITestCase):
     def test_semantic_search_invalid_input(self):
         response = self.client.post(reverse("semantic-search"), {"match_threshold": "invalid"})
@@ -695,6 +691,203 @@ class RecommendBooksViewTests(APITestCase):
         response = self.client.get(reverse("recommend-books"))
         self.assertEqual(response.status_code, status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+class ModelsTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(username='testuser', password='testpass')
+        self.category = Category.objects.create(name='Fiction')
+        self.author = Author.objects.create(name='John Doe')
+        self.book = Book.objects.create(
+            title='Sample Book',
+            author=self.author,
+            summary='A sample book summary.',
+            cover='http://example.com/cover.jpg',
+            category=self.category,
+            page_count=300
+        )
+
+    def test_category_creation(self):
+        category = Category.objects.create(name='Non-Fiction')
+        self.assertEqual(str(category), 'Non-Fiction')
+
+    def test_author_creation(self):
+        author = Author.objects.create(name='Jane Smith')
+        self.assertEqual(str(author), 'Jane Smith')
+
+    def test_book_creation(self):
+        self.assertEqual(str(self.book), 'Sample Book')
+        self.assertEqual(self.book.page_count, 300)
+        self.assertIsNone(self.book.embedding)
+
+    def test_favbook_unique_constraint(self):
+        FavBook.objects.create(user=self.user, book=self.book)
+        with self.assertRaises(Exception):
+            FavBook.objects.create(user=self.user, book=self.book)
+
+    def test_readlist_unique_constraint(self):
+        ReadList.objects.create(user=self.user, book=self.book)
+        with self.assertRaises(Exception):
+            ReadList.objects.create(user=self.user, book=self.book)
+
+    def test_rating_unique_constraint(self):
+        Rating.objects.create(user=self.user, book=self.book, rating=4)
+        with self.assertRaises(Exception):
+            Rating.objects.create(user=self.user, book=self.book, rating=5)
+
+    def test_usercomment_creation(self):
+        comment = UserComment.objects.create(user=self.user, book=self.book, content='Great book!')
+        self.assertEqual(str(comment), 'Comment by testuser on Sample Book')
 
 
+class SerializerTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(username="serializeruser", password="testpass")
+        self.category = Category.objects.create(name="Science Fiction")
+        self.author = Author.objects.create(name="Isaac Asimov")
+        self.book = Book.objects.create(
+            title="Foundation",
+            author=self.author,
+            summary="A science fiction novel.",
+            cover="http://example.com/foundation.jpg",
+            category=self.category,
+            page_count=255,
+        )
+        self.rating = Rating.objects.create(user=self.user, book=self.book, rating=5)
+        self.comment = UserComment.objects.create(user=self.user, book=self.book, content="Excellent read.")
+        self.category.book_count = Book.objects.filter(category=self.category).count()
+        self.author.book_count = Book.objects.filter(author=self.author).count()
+        self.author.average_rating = 5.0
 
+    def test_book_serializer(self):
+        serializer = BookSerializer(self.book)
+        expected_data = {
+            'id': self.book.id,
+            'title': 'Foundation',
+            'cover': 'http://example.com/foundation.jpg',
+            'author': {
+                'id': self.author.id,
+                'name': 'Isaac Asimov'
+            },
+            'summary': 'A science fiction novel.',
+            'category': {
+                'id': self.category.id,
+                'name': 'Science Fiction',
+                'book_count': 1
+            },
+            'page_count': 255,
+            'average_rating': 5.0
+        }
+        self.assertEqual(serializer.data, expected_data)
+
+    def test_author_serializer(self):
+        serializer = AuthorSerializer(self.author)
+        expected_data = {
+            "id": self.author.id,
+            "name": "Isaac Asimov",
+            "book_count": 1,
+            "average_rating": 5.0,
+            "book_books": [
+                {
+                    "id": self.book.id,
+                    "title": "Foundation",
+                    "cover": "http://example.com/foundation.jpg",
+                    "page_count": 255,
+                }
+            ],
+        }
+        self.assertEqual(serializer.data, expected_data)
+
+    def test_favbook_serializer(self):
+        fav_book = FavBook.objects.create(user=self.user, book=self.book)
+        serializer = FavBookSerializer(fav_book)
+        expected_data = {
+            "id": fav_book.id,
+            "book": {
+                "id": self.book.id,
+                "title": "Foundation",
+                "cover": "http://example.com/foundation.jpg",
+                "page_count": 255,
+            },
+        }
+        self.assertEqual(serializer.data, expected_data)
+
+    def test_readbooks_serializer(self):
+        read_list = ReadList.objects.create(user=self.user, book=self.book)
+        serializer = ReadBooksSerializer(read_list)
+        expected_data = {
+            "id": read_list.id,
+            "book": {
+                "id": self.book.id,
+                "title": "Foundation",
+                "cover": "http://example.com/foundation.jpg",
+                "page_count": 255,
+            },
+        }
+        self.assertEqual(serializer.data, expected_data)
+
+    def test_user_serializer(self):
+        serializer = UserSerializer(self.user)
+        expected_data = {
+            "id": self.user.id,
+            "username": "serializeruser",
+            "email": "",
+            "is_superuser": False,
+            "date_joined": self.user.date_joined.isoformat().replace("+00:00", "Z"),
+            "fav_user": [],
+            "read_user": [],
+            "comment_user": [{"id": self.comment.id, "content": "Excellent read."}],
+            "rating_user": [{"id": self.rating.id, "rating": 5}],
+        }
+        self.assertEqual(serializer.data, expected_data)
+
+    def test_category_serializer(self):
+        serializer = CategorySerializer(self.category)
+        expected_data = {
+            'id': self.category.id,
+            'name': 'Science Fiction',
+            'book_count': 1
+        }
+        self.assertEqual(serializer.data, expected_data)
+
+    def test_basic_author_serializer(self):
+        serializer = BasicAuthorSerializer(self.author)
+        expected_data = {
+            "id": self.author.id,
+            "name": "Isaac Asimov",
+        }
+        self.assertEqual(serializer.data, expected_data)
+
+    def test_basic_user_serializer(self):
+        serializer = BasicUserSerializer(self.user)
+        expected_data = {
+            "id": self.user.id,
+            "username": "serializeruser",
+        }
+        self.assertEqual(serializer.data, expected_data)
+
+    def test_commentsforuser_serializer(self):
+        serializer = CommentsforUser(self.comment)
+        expected_data = {
+            "id": self.comment.id,
+            "content": "Excellent read.",
+        }
+        self.assertEqual(serializer.data, expected_data)
+
+    def test_ratingforuser_serializer(self):
+        serializer = RatingforUser(self.rating)
+        expected_data = {
+            "id": self.rating.id,
+            "rating": 5,
+        }
+        self.assertEqual(serializer.data, expected_data)
+
+    def test_basic_comment_serializer(self):
+        serializer = BasicCommentSerializer(self.comment)
+        expected_data = {
+            "id": self.comment.id,
+            "content": "Excellent read.",
+            "book_id": self.book.id,
+            "user_id": self.user.id,
+            "user": {"id": self.user.id, "username": "serializeruser"},
+            "date": self.comment.date.isoformat().replace("+00:00", "Z"),
+        }
+        self.assertEqual(serializer.data, expected_data)

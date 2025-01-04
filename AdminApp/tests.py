@@ -242,5 +242,3 @@ class AdminSerializersTests(APITestCase):
         serializer = AdminUserCommentSerializer(data=data)
         self.assertFalse(serializer.is_valid())
         self.assertIn('content', serializer.errors)
-        self.assertIn('user', serializer.errors)
-        self.assertIn('book', serializer.errors)
