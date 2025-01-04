@@ -535,7 +535,7 @@ class RecommendBooksView(APIView):
                 )
 
             try:
-                top_n = int(request.data.get("top_n", 10))
+                top_n = int(request.query_params.get("top_n", 10))  # Use query_params
             except ValueError:
                 return Response(
                     {"status": "error", "message": "Invalid top_n value."},
@@ -544,7 +544,7 @@ class RecommendBooksView(APIView):
 
             try:
                 similarity_threshold = float(
-                    request.data.get("similarity_threshold", 0.8)
+                    request.query_params.get("similarity_threshold", 0.8)  # Use query_params
                 )
             except ValueError:
                 return Response(
@@ -560,12 +560,11 @@ class RecommendBooksView(APIView):
                     "similarity_threshold": similarity_threshold,
                 },
             ).execute()
-            book_ids=[]
-            for item in response.data:
-                book_ids.append(item['book_id'])
-            
-            books=Book.objects.filter(id__in=book_ids)
+            book_ids = [item["book_id"] for item in response.data]
+
+            books = Book.objects.filter(id__in=book_ids)
             books_data = BookSerializer(books, many=True).data
+
             if response.data:
                 return Response({"status": "success", "data": books_data}, status=status.HTTP_200_OK)
             else:

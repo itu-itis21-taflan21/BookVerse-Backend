@@ -646,5 +646,55 @@ class ReadListViewTests(TestCase):
 
 '''
 
+from rest_framework.test import APITestCase
+from unittest.mock import patch, Mock
+
+class SemanticSearchViewTests(APITestCase):
+    def test_semantic_search_invalid_input(self):
+        response = self.client.post(reverse("semantic-search"), {"match_threshold": "invalid"})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    @patch("BookApp.views.client.rpc")
+    def test_semantic_search_no_results(self, mock_rpc):
+        mock_rpc.return_value.execute.return_value = Mock(data=[])
+        
+        response = self.client.post(reverse("semantic-search"), {"key": "test query"})
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    @patch("BookApp.views.client.rpc")
+    def test_semantic_search_exception(self, mock_rpc):
+        mock_rpc.return_value.execute.side_effect = Exception("Test exception")
+        
+        response = self.client.post(reverse("semantic-search"), {"key": "test query"})
+        self.assertEqual(response.status_code, status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+class RecommendBooksViewTests(APITestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(username="testuser", password="password")
+        self.client.force_authenticate(user=self.user)
+        
+    def test_recommend_books_invalid_top_n(self):
+        response = self.client.get(reverse("recommend-books"), {"top_n": "invalid"})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_recommend_books_invalid_similarity_threshold(self):
+        response = self.client.get(
+            reverse("recommend-books"), {"similarity_threshold": "invalid"}
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    @patch("BookApp.views.client.rpc")
+    def test_recommend_books_no_recommendations(self, mock_rpc):
+        mock_rpc.return_value.execute.return_value = Mock(data=[])
+        response = self.client.get(reverse("recommend-books"))
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    @patch("BookApp.views.client.rpc")
+    def test_recommend_books_exception(self, mock_rpc):
+        mock_rpc.return_value.execute.side_effect = Exception("Test exception")
+        response = self.client.get(reverse("recommend-books"))
+        self.assertEqual(response.status_code, status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
 
 
