@@ -261,10 +261,12 @@ class BookView(APIView):
             if order_rating==True:
                 books = Book.objects.annotate(average_rating=Avg('rating_books__rating')).order_by('-average_rating','title')
             else:
-                books = books.annotate(favorite_count=Count('fav_books'))
-                books = books.order_by('-favorite_count', 'title')
-            serializer = BookSerializer(books, many=True)
+                books = books.annotate(
+                    favorite_count=Count('fav_books')
+                ).order_by('-favorite_count', 'title')
 
+            books = books[offset:offset + limit]
+            serializer = BookSerializer(books, many=True)
             next_offset = offset + limit if (offset + limit) < total_books else None
             previous_offset = offset - limit if (offset - limit) >= 0 else None
 
