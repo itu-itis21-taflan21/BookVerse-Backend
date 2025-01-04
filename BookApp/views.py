@@ -1,7 +1,8 @@
 from rest_framework.views import APIView
 from .models import Author,Category,Book,FavBook,UserComment,Rating,ReadList
 from rest_framework.response import Response
-from .serializers import AuthorSerializer,UserSerializer,CategorySerializer,BasicCommentSerializer,BasicUserSerializer,BookSerializer
+from django.core.mail import send_mail
+from .serializers import AuthorSerializer,UserSerializer,CategorySerializer,BasicCommentSerializer,BookSerializer,ContactUsSerializer
 from django.db.models import Count,Avg,Q
 from rest_framework import status
 from django.contrib.auth.models import User
@@ -24,10 +25,28 @@ client = create_client(url, key)
 class AuthorView(APIView):
     def get(self, request):
         id = request.query_params.get("id")
-        limit = int(request.query_params.get("limit", 10))  
+        limit = request.query_params.get("limit", 10)
+        offset = request.query_params.get("offset", 0)
         keyword = request.query_params.get("s")
+
         try:
-            if id: 
+            try:
+                limit = int(limit)
+                if limit <= 0:
+                    raise ValueError
+            except (ValueError, TypeError):
+                return Response({"error": "Limit must be a positive integer."},
+                                status=status.HTTP_400_BAD_REQUEST)
+
+            try:
+                offset = int(offset)
+                if offset < 0:
+                    raise ValueError
+            except (ValueError, TypeError):
+                return Response({"error": "Offset must be a non-negative integer."},
+                                status=status.HTTP_400_BAD_REQUEST)
+
+            if id:
                 authors = Author.objects.annotate(
                     book_count=Count('book_books'),
                     average_rating=Avg('book_books__rating_books__rating'),
@@ -35,7 +54,7 @@ class AuthorView(APIView):
                         'book_books__fav_books',
                         distinct=True
                     )
-                ).filter(id=id) 
+                ).filter(id=id)
                 if not authors.exists():
                     raise NotFound("Author not found")
             else:
@@ -51,13 +70,29 @@ class AuthorView(APIView):
                 if keyword:
                     authors = authors.filter(name__icontains=keyword)
 
-                authors = authors.order_by('-fav_book_count', 'name').all()
+                authors = authors.order_by('-fav_book_count', 'name')
 
-            authors = authors[:limit]
+            total_authors = authors.count()
+
+            authors = authors[offset:offset + limit]
             data = AuthorSerializer(authors, many=True).data
+
+            next_offset = offset + limit if (offset + limit) < total_authors else None
+            previous_offset = offset - limit if (offset - limit) >= 0 else None
+
+            pagination = {
+                "total": total_authors,
+                "limit": limit,
+                "offset": offset,
+                "next_offset": next_offset,
+                "previous_offset": previous_offset
+            }
+
             return Response({
-                'data': data  
+                'data': data,
+                'pagination': pagination
             }, status=status.HTTP_200_OK)
+
         except NotFound:
             return Response({'error': 'Author not found'}, status=404)
         except Exception as e:
@@ -91,22 +126,39 @@ class ProfileUpdateView(APIView):
     def post(self, request):
         try:
             new_password = request.data.get('new_password')
+            new_username = request.data.get('new_username')
             user = request.user
 
-            try:
-                validate_password(new_password, user=user)
-            except ValidationError as e:
-                return Response({"error": list(e.messages)}, status=status.HTTP_400_BAD_REQUEST)
+            # Validate new password
+            if new_password:
+                try:
+                    validate_password(new_password, user=user)
+                except ValidationError as e:
+                    return Response({"error": list(e.messages)}, status=status.HTTP_400_BAD_REQUEST)
 
-            if user.check_password(new_password):
-                return Response(
-                    {"error": "New password must be different from the current password"},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
+                if user.check_password(new_password):
+                    return Response(
+                        {"error": "New password must be different from the current password"},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
 
-            user.set_password(new_password)
+                user.set_password(new_password)
+
+            # Change username if provided
+            if new_username:
+                if User.objects.filter(username=new_username).exists():
+                    return Response(
+                        {"error": "Username is already taken. Please choose a different one."},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+                if len(new_username)>150:
+                    return Response({"error":"Username should be less than 150 characters."},status=status.HTTP_400_BAD_REQUEST)
+                user.username = new_username
+
+            # Save the updated user information
             user.save()
-            return Response({"message": "Password has been reset successfully."}, status=status.HTTP_200_OK)
+            return Response({"message": "Password and/or username has been updated successfully."}, status=status.HTTP_200_OK)
+
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
         
@@ -148,6 +200,7 @@ class BookView(APIView):
             keyword = request.query_params.get("s")
             limit = request.query_params.get("limit", 10)
             offset = request.query_params.get("offset", 0)
+            order_rating=request.query_params.get("order_rating")
 
             if book_id:
                 try:
@@ -205,7 +258,11 @@ class BookView(APIView):
                     return Response({"error": "No books match the keyword."}, status=status.HTTP_404_NOT_FOUND)
 
             total_books = books.count()
-            books = books.order_by('-id')[offset:offset + limit]
+            if order_rating==True:
+                books = Book.objects.annotate(average_rating=Avg('rating_books__rating')).order_by('-average_rating','title')
+            else:
+                books = books.annotate(favorite_count=Count('fav_books'))
+                books = books.order_by('-favorite_count', 'title')
             serializer = BookSerializer(books, many=True)
 
             next_offset = offset + limit if (offset + limit) < total_books else None
@@ -579,3 +636,28 @@ class RecommendBooksView(APIView):
                 {"status": "error", "message": str(e)},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
+
+class ContactUsView(APIView):
+    def post(self, request):
+        # Validate input data using the serializer
+        serializer = ContactUsSerializer(data=request.data)
+        if serializer.is_valid():
+            name = serializer.validated_data['name']
+            email = serializer.validated_data['email']
+            message = serializer.validated_data['message']
+
+            # Send email
+            try:
+                send_mail(
+                    subject=f"Contact Us Message from {name}",
+                    message=f"Message from {name} ({email}):\n\n{message}",
+                    from_email=email,
+                    recipient_list=['sengproje@gmail.com'],
+                )
+
+                return Response({'message': 'Your message has been sent successfully.'}, status=status.HTTP_200_OK)
+
+            except Exception as e:
+                return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
