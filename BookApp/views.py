@@ -320,6 +320,7 @@ class RatingView(APIView):
         user=request.user
 
         book_id=request.query_params.get('book_id')
+
         if not book_id:
             return Response({"error": "book_id is required."}, status=status.HTTP_400_BAD_REQUEST)
         if not isinstance(book_id, int):
@@ -334,9 +335,10 @@ class RatingView(APIView):
         try:
             user_rating = Rating.objects.get(book=book, user=user)
             return Response({'user_rating': user_rating.rating}, status=status.HTTP_200_OK)
-        except Rating.DoesNotExist:
-            return Response({'error': 'No ratings for user found for the book.'}, status=status.HTTP_404_NOT_FOUND)
+        except:
+            return Response({'user_rating': 0.0}, status=status.HTTP_404_NOT_FOUND)
     
+
     
     def post(self, request):
         user = request.user
