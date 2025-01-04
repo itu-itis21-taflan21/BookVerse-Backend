@@ -1,6 +1,6 @@
 from django.urls import path
 
-from .views import AuthorView,ProfileView,CategoryView,ProfileUpdateView,ProfileDeleteView,BookView,FavoriteView,CommentView,RatingView,ReadListView,SemanticSearchView,RecommendBooksView
+from .views import AuthorView,ProfileView,CategoryView,ProfileUpdateView,ProfileDeleteView,BookView,FavoriteView,CommentView,RatingView,ReadListView,SemanticSearchView,RecommendBooksView,ContactUsView
 
 urlpatterns = [
     path('get-author/', AuthorView.as_view(), name='get-author'),
@@ -20,4 +20,5 @@ urlpatterns = [
     path('get-readlist/',ReadListView.as_view(),name='get-readlist'),
     path('semantic-search/', SemanticSearchView.as_view(), name='semantic-search'),
     path('recommended-books/', RecommendBooksView.as_view(), name='recommend-books'),
+    path('contact-us/', ContactUsView.as_view(), name='contact-us'),
 ]
