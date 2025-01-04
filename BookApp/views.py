@@ -23,8 +23,9 @@ client = create_client(url, key)
 
 class AuthorView(APIView):
     def get(self, request):
-        id=request.query_params.get("id")
-        limit=int(request.query_params.get("limit",5))  
+        id = request.query_params.get("id")
+        limit = int(request.query_params.get("limit", 10))  
+        keyword = request.query_params.get("s")
         try:
             if id: 
                 authors = Author.objects.annotate(
@@ -45,8 +46,14 @@ class AuthorView(APIView):
                         'book_books__fav_books',
                         distinct=True
                     )
-                ).order_by('-fav_book_count','name').all()
-            authors=authors[:limit]
+                )
+
+                if keyword:
+                    authors = authors.filter(name__icontains=keyword)
+
+                authors = authors.order_by('-fav_book_count', 'name').all()
+
+            authors = authors[:limit]
             data = AuthorSerializer(authors, many=True).data
             return Response({
                 'data': data  
@@ -494,12 +501,15 @@ class SemanticSearchView(APIView):
                     "match_count": match_count,
                 },
             ).execute()
+            book_ids=[]
+            for item in response.data:
+                book_ids.append(item['id'])
+            
+            books=Book.objects.filter(id__in=book_ids)
+            books_data = BookSerializer(books, many=True).data
 
             if response.data:
-                return Response(
-                    {"status": "success", "recommendations": response.data},
-                    status=status.HTTP_200_OK,
-                )
+                return Response({"status": "success", "data": books_data}, status=status.HTTP_200_OK)
             else:
                 return Response(
                     {"status": "error", "message": "No results found."},
@@ -550,12 +560,14 @@ class RecommendBooksView(APIView):
                     "similarity_threshold": similarity_threshold,
                 },
             ).execute()
-
+            book_ids=[]
+            for item in response.data:
+                book_ids.append(item['book_id'])
+            
+            books=Book.objects.filter(id__in=book_ids)
+            books_data = BookSerializer(books, many=True).data
             if response.data:
-                return Response(
-                    {"status": "success", "recommendations": response.data},
-                    status=status.HTTP_200_OK,
-                )
+                return Response({"status": "success", "data": books_data}, status=status.HTTP_200_OK)
             else:
                 return Response(
                     {"status": "error", "message": "No recommendations found."},

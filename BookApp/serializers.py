@@ -82,6 +82,6 @@ class BasicCommentSerializer(serializers.ModelSerializer):
     user=BasicUserSerializer(many=False,read_only=True)
     class Meta:
         model=UserComment
-        fields=['id','content','book_id','user_id','user']
+        fields=['id','content','book_id','user_id','user','date']
 
 
