@@ -85,3 +85,7 @@ class BasicCommentSerializer(serializers.ModelSerializer):
         fields=['id','content','book_id','user_id','user','date']
 
 
+class ContactUsSerializer(serializers.Serializer):
+    name = serializers.CharField(max_length=100)
+    email = serializers.EmailField()
+    message = serializers.CharField(max_length=1000)
