@@ -218,13 +218,14 @@ class RatingView(APIView):
         user_id=request.user.id
         book_id=request.query_params.get('book_id')
         
-        
-        user_rating=Rating.objects.filter(book_id=book_id,user_id=user_id).get()
-        if user_rating:
-            return Response({'user_rating':user_rating.rating}, status=status.HTTP_200_OK)
-        else:
-            return Response({'error': 'No ratings for user found for the book.'}, status=status.HTTP_404_NOT_FOUND)
-    
+        try:
+            user_rating=Rating.objects.filter(book_id=book_id,user_id=user_id).get()
+            if user_rating:
+                return Response({'user_rating':user_rating.rating}, status=status.HTTP_200_OK)
+            else:
+                return Response({'error': 'No ratings for user found for the book.'}, status=status.HTTP_404_NOT_FOUND)
+        except:
+            return Response({'user_rating':0.0}, status=status.HTTP_200_OK)
     
     def post(self, request):
         user = request.user
