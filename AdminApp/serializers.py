@@ -29,3 +29,17 @@ class AdminUserCommentSerializer(serializers.ModelSerializer):
     class Meta:
         model = UserComment
         fields = ['id', 'content', 'date', 'user', 'book']
+
+    def validate_user(self, value):
+        if not value:
+            raise serializers.ValidationError("User cannot be blank.")
+        if not User.objects.all().filter(id=value.id).exists():
+            raise serializers.ValidationError("User does not exist.")
+        return value
+
+    def validate_book(self, value):
+        if not value:
+            raise serializers.ValidationError("Book cannot be blank.")
+        if not Book.objects.all().filter(id=value.id).exists():
+            raise serializers.ValidationError("Book does not exist.")
+        return value

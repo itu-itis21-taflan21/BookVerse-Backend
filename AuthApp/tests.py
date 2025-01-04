@@ -1,4 +1,4 @@
-"""from django.test import TestCase
+from django.test import TestCase
 from django.urls import reverse
 from django.contrib.auth.models import User
 from rest_framework.test import APIClient
@@ -8,6 +8,7 @@ from django.utils.http import urlsafe_base64_encode
 from django.utils.encoding import force_bytes
 from django.contrib.auth.tokens import default_token_generator
 from django.core.cache import cache
+from .models import Profile  
 
 class AuthViewsTest(TestCase):
     # Override 
@@ -428,4 +429,21 @@ class PasswordResetSecurityTests(TestCase):
         reset_url = reverse('reset-password', kwargs={'uid': uid, 'token': token})
         data = {'new_password': 'AnotherPass123'}
         response = self.client.post(reset_url, data)
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)"""
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+class AuthAppModelTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(username='authuser', email='auth@example.com', password='authpass')
+        self.profile = Profile.objects.create(user=self.user, bio='This is a test bio.')
+
+    def test_profile_str(self):
+        self.assertEqual(str(self.profile), f"Profile of {self.user.username}")
+
+    def test_profile_bio_max_length(self):
+        long_bio = 'B' * 501
+        with self.assertRaises(Exception):
+            Profile.objects.create(user=self.user, bio=long_bio)
+
+    def test_profile_user_unique_constraint(self):
+        with self.assertRaises(Exception):
+            Profile.objects.create(user=self.user, bio='Another bio')
