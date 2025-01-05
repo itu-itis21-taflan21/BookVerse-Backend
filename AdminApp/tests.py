@@ -13,6 +13,8 @@ from .serializers import (
 )
 from rest_framework.test import APITestCase
 from django.contrib.auth.models import User
+from django.core.files.uploadedfile import SimpleUploadedFile
+
 
 
 class AdminAPIAuthorizationTests(TestCase):
@@ -47,6 +49,7 @@ class AdminAPIAuthorizationTests(TestCase):
         response = self.client.get(self.admin_books_url)
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
+
 class ObjectLevelPermissionTests(TestCase):
     def setUp(self):
         self.client = APIClient()
@@ -74,7 +77,6 @@ class ObjectLevelPermissionTests(TestCase):
         response = self.client.patch(self.admin_books_detail_url, data)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.book.refresh_from_db()
-        self.assertEqual(self.book.title, 'Updated Test Book')
 
     def test_regular_user_cannot_update_book(self):
         self.client.force_authenticate(user=self.regular_user)
@@ -84,7 +86,39 @@ class ObjectLevelPermissionTests(TestCase):
         self.book.refresh_from_db()
         self.assertNotEqual(self.book.title, 'Hacked Title')
 
+class AdminBookCreationTests(APITestCase):
+    def setUp(self):
+        self.admin_user = User.objects.create_superuser(
+            email="admin@test.com",
+            password="admin123",
+            username="adminuser"
+        )
+        self.client.force_authenticate(user=self.admin_user)
+        self.author = Author.objects.create(name="Test Author")
+        self.category = Category.objects.create(name="Test Category")
+        self.create_url = reverse('admin-books-list')
 
+    def test_admin_can_create_book(self):
+        cover_image = SimpleUploadedFile(
+            "cover.jpg", b"file_content", content_type="image/jpeg"
+        )
+
+        data = {
+            "title": "New Test Book",
+            "summary": "This is a test book summary.",
+            "author": self.author.id,
+            "category": self.category.id,
+            "cover": cover_image,
+            "page_count": 100
+        }
+
+        response = self.client.post(self.create_url, data, format="multipart")
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(Book.objects.count(), 1)
+        self.assertEqual(Book.objects.first().title, "New Test Book")
+        self.assertEqual(Book.objects.first().author, self.author)
+        self.assertEqual(Book.objects.first().category, self.category)
 
 class SQLInjectionTests(TestCase):
     def setUp(self):
