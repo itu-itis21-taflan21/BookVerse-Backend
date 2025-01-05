@@ -31,6 +31,8 @@ class AuthorView(APIView):
         limit = request.query_params.get("limit", 10)
         offset = request.query_params.get("offset", 0)
         keyword = request.query_params.get("s")
+        order_fav = request.query_params.get("order_fav", "false").lower()
+        order_fav = order_fav in ['1', 'true', 't', 'yes']
 
         try:
             try:
@@ -72,8 +74,11 @@ class AuthorView(APIView):
 
                 if keyword:
                     authors = authors.filter(name__icontains=keyword)
-
+    
+            if order_fav==True:
                 authors = authors.order_by('-fav_book_count', 'name')
+            else:
+                authors = authors.order_by('name')
 
             total_authors = authors.count()
 

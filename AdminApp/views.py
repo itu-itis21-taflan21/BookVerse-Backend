@@ -6,6 +6,7 @@ from BookApp.models import Book,Author,Category,UserComment
 from .serializers import AdminBookSerializer
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters
+from rest_framework.filters import SearchFilter
 from supabase import create_client, Client
 import uuid
 import torch
@@ -26,7 +27,9 @@ class AdminBookViewSet(viewsets.ModelViewSet):
     serializer_class = AdminBookSerializer
     queryset = Book.objects.all()
     permission_classes = [permissions.IsAuthenticated, permissions.IsAdminUser]
-    parser_classes = [MultiPartParser, FormParser]  
+    parser_classes = [MultiPartParser, FormParser]
+    search_fields = ['title']
+    filter_backends = [SearchFilter]
 
     def create(self, request, *args, **kwargs):
         cover_image = request.FILES.get('cover')  
