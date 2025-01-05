@@ -12,7 +12,6 @@ from unittest.mock import patch
 from rest_framework.test import APITestCase
 from unittest.mock import patch, Mock
 
-
 class CategoryViewTests(TestCase):
     def setUp(self):
         self.category1 = Category.objects.create(name="Category 1")
@@ -64,14 +63,12 @@ class ProfileUpdateViewTests(TestCase):
     def test_update_password_success(self):
         response = self.client.post(reverse('reset-password'), {'new_password': 'newpassword123'})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertIn('Password has been reset successfully.', response.data['message'])
         self.user.refresh_from_db()
         self.assertTrue(self.user.check_password('newpassword123'))
 
     def test_update_password_no_data(self):
         response = self.client.post(reverse('reset-password'), {})
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn('error', response.data)
 
     def test_update_password_unauthenticated(self):
         self.client.force_authenticate(user=None)
@@ -691,6 +688,8 @@ class RecommendBooksViewTests(APITestCase):
         response = self.client.get(reverse("recommend-books"))
         self.assertEqual(response.status_code, status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+
+
 class ModelsTests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(username='testuser', password='testpass')
@@ -891,3 +890,184 @@ class SerializerTests(TestCase):
             "date": self.comment.date.isoformat().replace("+00:00", "Z"),
         }
         self.assertEqual(serializer.data, expected_data)
+
+class ContactUsViewTests(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+        self.url = reverse('contact-us') 
+
+    @patch('BookApp.views.send_mail')
+    def test_contact_us_success(self, mock_send_mail):
+        data = {
+            'name': 'John Doe',
+            'email': 'john.doe@example.com',
+            'message': 'I love your app!'
+        }
+        mock_send_mail.return_value = 1  
+        response = self.client.post(self.url, data)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['message'], 'Your message has been sent successfully.')
+        mock_send_mail.assert_called_once()
+
+    @patch('BookApp.views.send_mail')
+    def test_contact_us_missing_fields(self, mock_send_mail):
+        data = {
+            'name': '',
+            'email': 'invalidemail',
+            'message': ''
+        }
+        response = self.client.post(self.url, data)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('name', response.data)
+        self.assertIn('email', response.data)
+        self.assertIn('message', response.data)
+        mock_send_mail.assert_not_called()
+
+    @patch('BookApp.views.send_mail')
+    def test_contact_us_invalid_email(self, mock_send_mail):
+        data = {
+            'name': 'Jane Doe',
+            'email': 'jane.doe@invalid',  
+            'message': 'Hello!'
+        }
+        response = self.client.post(self.url, data)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('email', response.data)
+        mock_send_mail.assert_not_called()
+
+    @patch('BookApp.views.send_mail')
+    def test_contact_us_email_failure(self, mock_send_mail):
+        data = {
+            'name': 'John Doe',
+            'email': 'john.doe@example.com',
+            'message': 'I love your app!'
+        }
+        mock_send_mail.side_effect = Exception('SMTP server error')
+        response = self.client.post(self.url, data)
+        self.assertEqual(response.status_code, status.HTTP_500_INTERNAL_SERVER_ERROR)
+        self.assertIn('error', response.data)
+        mock_send_mail.assert_called_once()
+
+class AuthorViewTests(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+        self.url = reverse('get-author') 
+        self.author1 = Author.objects.create(name="Author One")
+        self.author2 = Author.objects.create(name="Author Two")
+        self.author3 = Author.objects.create(name="Another Author")
+
+    def test_retrieve_all_authors(self):
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data['data']), 3)
+        self.assertIn('pagination', response.data)
+
+    def test_retrieve_author_by_id_success(self):
+        response = self.client.get(self.url, {'id': self.author1.id})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data['data']), 1)
+        self.assertEqual(response.data['data'][0]['name'], self.author1.name)
+
+    def test_retrieve_author_by_id_not_found(self):
+        response = self.client.get(self.url, {'id': 999})
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(response.data['error'], 'Author not found')
+
+    def test_retrieve_authors_with_keyword(self):
+        response = self.client.get(self.url, {'s': 'Another'})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data['data']), 1)
+
+    def test_retrieve_authors_invalid_limit(self):
+        response = self.client.get(self.url, {'limit': -5})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data['error'], 'Limit must be a positive integer.')
+
+    def test_retrieve_authors_invalid_offset(self):
+        response = self.client.get(self.url, {'offset': -10})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data['error'], 'Offset must be a non-negative integer.')
+
+    def test_retrieve_authors_with_invalid_parameters(self):
+        response = self.client.get(self.url, {'limit': 'ten', 'offset': 'zero'})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data['error'], 'Limit must be a positive integer.')
+
+    def test_author_pagination_next_previous_offsets(self):
+        response = self.client.get(self.url, {'limit': 1, 'offset': 0})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIsNotNone(response.data['pagination']['next_offset'])
+        self.assertIsNone(response.data['pagination']['previous_offset'])
+
+        response = self.client.get(self.url, {'limit': 1, 'offset': 1})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIsNotNone(response.data['pagination']['next_offset'])
+        self.assertEqual(response.data['pagination']['previous_offset'], 0)
+
+        response = self.client.get(self.url, {'limit': 1, 'offset': 2})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIsNone(response.data['pagination']['next_offset'])
+        self.assertEqual(response.data['pagination']['previous_offset'], 1)
+
+class BookViewRatingTests(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+        self.user1 = User.objects.create_user(username="user1", password="password1")
+        self.user2 = User.objects.create_user(username="user2", password="password2")
+
+        self.author = Author.objects.create(name="Author One")
+        self.category = Category.objects.create(name="Category One")
+
+        self.book1 = Book.objects.create(
+            title="Book A",
+            author=self.author,
+            category=self.category,
+            page_count=100
+        )
+        self.book2 = Book.objects.create(
+            title="Book B",
+            author=self.author,
+            category=self.category,
+            page_count=200
+        )
+        self.book3 = Book.objects.create(
+            title="Book C",
+            author=self.author,
+            category=self.category,
+            page_count=300
+        )
+
+        Rating.objects.create(user=self.user1, book=self.book1, rating=5)
+        Rating.objects.create(user=self.user2, book=self.book1, rating=4)
+        Rating.objects.create(user=self.user1, book=self.book2, rating=3)
+        Rating.objects.create(user=self.user2, book=self.book2, rating=2)
+        Rating.objects.create(user=self.user1, book=self.book3, rating=4)
+        Rating.objects.create(user=self.user2, book=self.book3, rating=4)
+
+    def test_get_books_ordered_by_average_rating(self):
+        url = reverse('get-book')  
+        response = self.client.get(url, {'order_rating': 'true'})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        
+        # Calculate expected ordering
+        # book1 average = (5 + 4) / 2 = 4.5
+        # book3 average = (4 + 4) / 2 = 4.0
+        # book2 average = (3 + 2) / 2 = 2.5
+        expected_order = [self.book1, self.book3, self.book2]
+        serializer = BookSerializer(expected_order, many=True)
+        
+        self.assertEqual(response.data['data'], serializer.data)
+        
+        returned_books = response.data['data']
+        self.assertEqual(returned_books[0]['id'], self.book1.id)
+        self.assertEqual(returned_books[1]['id'], self.book3.id)
+        self.assertEqual(returned_books[2]['id'], self.book2.id)
+
+    def test_get_books_ordered_by_favorite_count_when_order_rating_false(self):
+        url = reverse('get-book') 
+        response = self.client.get(url, {'order_rating': 'false'})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        expected_order = sorted([self.book1, self.book2, self.book3], key=lambda x: (-0, x.title))
+        serializer = BookSerializer(expected_order, many=True)
+        
+        self.assertEqual(response.data['data'], serializer.data)

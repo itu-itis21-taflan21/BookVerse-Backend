@@ -128,8 +128,9 @@ class ProfileUpdateView(APIView):
             new_password = request.data.get('new_password')
             new_username = request.data.get('new_username')
             user = request.user
+            if not new_password and not new_username:
+                return Response({"error":"New password or username is required."},status=status.HTTP_400_BAD_REQUEST)
 
-            # Validate new password
             if new_password:
                 try:
                     validate_password(new_password, user=user)
@@ -144,7 +145,6 @@ class ProfileUpdateView(APIView):
 
                 user.set_password(new_password)
 
-            # Change username if provided
             if new_username:
                 if User.objects.filter(username=new_username).exists():
                     return Response(
@@ -200,7 +200,8 @@ class BookView(APIView):
             keyword = request.query_params.get("s")
             limit = request.query_params.get("limit", 10)
             offset = request.query_params.get("offset", 0)
-            order_rating=request.query_params.get("order_rating")
+            order_rating = request.query_params.get("order_rating", "false").lower()
+            order_rating = order_rating in ['1', 'true', 't', 'yes']
 
             if book_id:
                 try:
@@ -259,7 +260,7 @@ class BookView(APIView):
 
             total_books = books.count()
             if order_rating==True:
-                books = Book.objects.annotate(average_rating=Avg('rating_books__rating')).order_by('-average_rating','title')
+                books = Book.objects.annotate(average_rating = Avg('rating_books__rating')).order_by('-average_rating','title')
             else:
                 books = books.annotate(
                     favorite_count=Count('fav_books')

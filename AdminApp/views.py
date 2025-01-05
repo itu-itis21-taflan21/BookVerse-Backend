@@ -73,10 +73,11 @@ class AdminBookViewSet(viewsets.ModelViewSet):
         partial = kwargs.pop('partial', False)
         instance = self.get_object()
     
-        title = request.data.get('title', instance.title)  
-        summary = request.data.get('summary', instance.summary) 
-        author_id = request.data.get('author', instance.author.id) 
-        category_id = request.data.get('category', instance.category.id) 
+        data = request.data.copy()
+        title = data.get('title', instance.title)  
+        summary = data.get('summary', instance.summary) 
+        author_id = data.get('author', instance.author.id) 
+        category_id = data.get('category', instance.category.id) 
         author = Author.objects.get(id=author_id).name
         category = Category.objects.get(id=category_id).name
     
@@ -90,9 +91,9 @@ class AdminBookViewSet(viewsets.ModelViewSet):
             response2 = supabase.storage.from_(bucket_name).create_signed_url(file_name, 31556926)
             public_url = response2["signedURL"]
     
-            request.data['cover'] = public_url
+            data['cover'] = public_url
         else:
-            request.data['cover'] = instance.cover  
+            data['cover'] = instance.cover  
     
         if title != instance.title or summary != instance.summary or \
            str(author_id) != str(instance.author.id) or str(category_id) != str(instance.category.id):
@@ -107,11 +108,11 @@ class AdminBookViewSet(viewsets.ModelViewSet):
                 embeddings = outputs.last_hidden_state.mean(dim=1)
             embeddings_list = embeddings.squeeze().tolist()
     
-            request.data['embedding'] = embeddings_list
+            data['embedding'] = embeddings_list
         else:
-            request.data['embedding'] = instance.embedding 
+            data['embedding'] = instance.embedding 
     
-        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        serializer = self.get_serializer(instance, data=data, partial=partial)
         serializer.is_valid(raise_exception=True)
         self.perform_update(serializer)
     
