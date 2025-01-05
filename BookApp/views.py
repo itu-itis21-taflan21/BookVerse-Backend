@@ -3,7 +3,7 @@ from .models import Author,Category,Book,FavBook,UserComment,Rating,ReadList
 from rest_framework.response import Response
 from django.core.mail import send_mail
 from .serializers import AuthorSerializer,UserSerializer,CategorySerializer,BasicCommentSerializer,BookSerializer,ContactUsSerializer
-from django.db.models import Count,Avg,Q
+from django.db.models import Count,Avg,Q,F
 from rest_framework import status
 from django.contrib.auth.models import User
 from rest_framework.permissions import IsAuthenticated, AllowAny
@@ -14,7 +14,7 @@ from supabase import create_client
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
 from django.shortcuts import get_object_or_404
-import os 
+import os
 
 
 model = AutoModel.from_pretrained("avsolatorio/NoInstruct-small-Embedding-v0")
@@ -74,7 +74,7 @@ class AuthorView(APIView):
 
                 if keyword:
                     authors = authors.filter(name__icontains=keyword)
-    
+
             if order_fav==True:
                 authors = authors.order_by('-fav_book_count', 'name')
             else:
@@ -268,7 +268,9 @@ class BookView(APIView):
 
             total_books = books.count()
             if order_rating==True:
-                books = Book.objects.annotate(average_rating = Avg('rating_books__rating')).order_by('-average_rating','title')
+                books = books.annotate(average_rating=Avg('rating_books__rating'))
+                books = books.order_by(F('average_rating').desc(nulls_last=True), 'title')
+
             else:
                 books = books.annotate(
                     favorite_count=Count('fav_books')

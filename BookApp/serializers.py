@@ -71,7 +71,7 @@ class BookSerializer(serializers.ModelSerializer):
     
     def get_average_rating(self, obj):
         average_rating = Rating.objects.filter(book=obj).aggregate(Avg('rating'))['rating__avg']
-        return average_rating if average_rating is not None else 0 
+        return average_rating if average_rating is not None else 0.0
 
 class BasicUserSerializer(serializers.ModelSerializer):
     class Meta:
