@@ -120,7 +120,46 @@ class AdminBookViewSet(viewsets.ModelViewSet):
         self.perform_update(serializer)
     
         return Response(serializer.data)
- 
+    
+
+    def list(self, request, *args, **kwargs):
+        limit = request.query_params.get('limit', 10)  
+        offset = request.query_params.get('offset', 0)  
+        try:
+            limit = int(limit)
+            if limit <= 0:
+                raise ValueError
+        except (ValueError, TypeError):
+            return Response({"error": "Limit must be a positive integer."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            offset = int(offset)
+            if offset < 0:
+                raise ValueError
+        except (ValueError, TypeError):
+            return Response({"error": "Offset must be a non-negative integer."}, status=status.HTTP_400_BAD_REQUEST)
+
+        queryset = self.filter_queryset(self.get_queryset())
+        total_books = queryset.count()
+        books = queryset[offset:offset + limit]
+
+        serializer = self.get_serializer(books, many=True)
+
+        next_offset = offset + limit if (offset + limit) < total_books else None
+        previous_offset = offset - limit if (offset - limit) >= 0 else None
+
+        pagination = {
+            "total": total_books,
+            "limit": limit,
+            "offset": offset,
+            "next_offset": next_offset,
+            "previous_offset": previous_offset,
+        }
+
+        return Response({
+            "pagination": pagination,
+            "data": serializer.data,
+        }, status=status.HTTP_200_OK)
  
 class AdminCategoryViewSet(viewsets.ModelViewSet):
     queryset = Category.objects.all()
