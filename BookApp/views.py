@@ -53,7 +53,7 @@ class AuthorView(APIView):
 
             if id:
                 authors = Author.objects.annotate(
-                    book_count=Count('book_books'),
+                    book_count=Count('book_books',distinct=True),
                     average_rating=Avg('book_books__rating_books__rating'),
                     fav_book_count=Count(
                         'book_books__fav_books',
@@ -64,7 +64,7 @@ class AuthorView(APIView):
                     raise NotFound("Author not found")
             else:
                 authors = Author.objects.annotate(
-                    book_count=Count('book_books'),
+                    book_count=Count('book_books',distinct=True),
                     average_rating=Avg('book_books__rating_books__rating'),
                     fav_book_count=Count(
                         'book_books__fav_books',
@@ -113,11 +113,11 @@ class CategoryView(APIView):
             category_id = request.query_params.get("category_id")
             if category_id: 
                 categories = Category.objects.filter(id=category_id).annotate(
-                    book_count=Count('book_category')
+                    book_count=Count('book_category',distinct=True)
                 )
             else:
                 categories = Category.objects.annotate(
-                    book_count=Count('book_category')
+                    book_count=Count('book_category',distinct=True)
                 ).all()
             data = CategorySerializer(categories,many=True).data
             return Response({
