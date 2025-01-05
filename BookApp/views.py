@@ -14,12 +14,15 @@ from supabase import create_client
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
 from django.shortcuts import get_object_or_404
+import os 
+
 
 model = AutoModel.from_pretrained("avsolatorio/NoInstruct-small-Embedding-v0")
 tokenizer = AutoTokenizer.from_pretrained("avsolatorio/NoInstruct-small-Embedding-v0")
 
-url = "https://dujnhstimlhkodtayygi.supabase.co"
-key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR1am5oc3RpbWxoa29kdGF5eWdpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzE4NDI1NDgsImV4cCI6MjA0NzQxODU0OH0.8JpiFgmTtzwl1RS6xrz3npVog1XhjgqqhXQX6rvBvmE"
+url = os.getenv('SUPABASE_URL')
+key = os.getenv('SUPABASE_KEY')
+
 client = create_client(url, key)
 
 class AuthorView(APIView):
